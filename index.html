@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#10161C">
+<style>[hidden]{display:none!important}</style>
+<title>양구 도로주행 시뮬레이터</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&family=IBM+Plex+Mono:wght@700&display=swap">
+<style>
+:root{--bg:#10161C;--panel:#1B232B;--ink:#F2F4F6;--mute:#9AA7B3;--line:#2E3A45;--navy:#1F5C8A;--yellow:#F5C518;--yinK:#201A00;--ok:#4FCB7F;--bad:#FF6B5B;--red:#C93A2E;--green:#2E8B57}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans KR",system-ui,sans-serif;overflow:hidden;user-select:none;-webkit-user-select:none}
+.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+#app{height:100dvh;display:flex;flex-direction:column}
+#view{position:relative;flex:1;min-height:0;background:#7fa36a}
+canvas{display:block;width:100%;height:100%}
+.hud{position:absolute;pointer-events:none}
+#nav{top:8px;left:8px;right:120px;background:rgba(16,22,28,.82);border-left:4px solid var(--yellow);border-radius:6px;padding:6px 10px;font-size:14px;line-height:1.35}
+#nav small{display:block;color:var(--mute);font-size:11px;letter-spacing:.06em}
+#nav b{font-size:16px}
+#spd{top:8px;right:8px;width:104px;background:rgba(16,22,28,.82);border-radius:6px;padding:6px 8px;text-align:center}
+#spd .n{font-size:38px;line-height:1;font-weight:700}
+#spd .u{font-size:11px;color:var(--mute)}
+#spd.over{background:rgba(201,58,46,.9)}
+#lane{top:92px;right:8px;width:104px;text-align:center;font-size:13px;background:rgba(16,22,28,.82);border-radius:6px;padding:4px}
+#sig{bottom:10px;left:8px;display:flex;gap:6px;font-size:22px}
+#sig span{opacity:.18;color:#3ddc5a;transition:opacity .1s}
+#sig span.on{opacity:1}
+#light{bottom:10px;right:8px;font-size:12px;background:rgba(16,22,28,.82);border-radius:6px;padding:4px 8px;display:none}
+#toast{bottom:44px;left:8px;right:8px;text-align:center;font-size:14px;font-weight:700;color:#fff;background:rgba(201,58,46,.92);border-radius:6px;padding:6px 10px;opacity:0;transition:opacity .2s}
+#toast.ok{background:rgba(46,139,87,.92)}
+#toast.show{opacity:1}
+#ctl{background:var(--panel);border-top:1px solid var(--line);padding:6px 8px 10px;touch-action:none;display:grid;grid-template-rows:24px 160px;gap:6px}
+#wheel{width:150px;height:150px;touch-action:none;justify-self:center;align-self:center}
+.dash{display:grid;grid-template-columns:74px 150px 1fr;gap:8px;align-items:center}
+.stalk{display:grid;grid-template-rows:1fr 1fr;gap:6px;height:150px}
+.stalk .k{font-size:13px;line-height:1.2}
+.pedals{display:grid;grid-template-columns:1.25fr 1fr;gap:8px;height:150px;align-items:end}
+.pedals .stop{height:118px}.pedals .go{height:150px}
+.mini{font:inherit;font-size:11px;font-weight:700;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:6px;padding:2px 8px;cursor:pointer}
+.mini.on{border-color:var(--yellow);color:var(--yellow)}
+#info{display:flex;justify-content:space-between;font-size:12px;color:var(--mute);padding:0 4px}
+#info b{color:var(--ink)}
+button.k{font:inherit;font-weight:900;font-size:16px;border:0;border-radius:10px;color:var(--ink);background:#2A3744;touch-action:none;user-select:none;-webkit-user-select:none;cursor:pointer;padding:0}
+button.k:active,button.k.down{background:#3D5062;transform:translateY(1px)}
+button.k.on{background:var(--yellow);color:var(--yinK)}
+button.k.go{background:var(--green)} button.k.stop{background:var(--red)}
+button.k.go.down{background:#3fb070} button.k.stop.down{background:#e05a4c}
+button.k.steer{font-size:26px}
+.ov[hidden]{display:none}
+.ov{position:absolute;inset:0;background:rgba(16,22,28,.92);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;z-index:5}
+.ov .box{width:100%;max-width:420px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}
+.ov h1{margin:0 0 4px;font-size:21px;font-weight:900}
+.ov p{margin:0 0 12px;color:var(--mute);font-size:13px;line-height:1.5}
+.pick{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
+.pick button,.seg button,.big{font:inherit;font-weight:700;border:2px solid var(--line);background:transparent;color:var(--ink);border-radius:8px;padding:9px 6px;cursor:pointer}
+.pick button.on,.seg button.on{border-color:var(--yellow);background:rgba(245,197,24,.15)}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+.big{display:block;width:100%;margin-top:8px;padding:12px;font-size:16px}
+.big.belt.on{border-color:var(--ok);background:rgba(79,203,127,.15)}
+.big.start{background:var(--yellow);color:var(--yinK);border-color:var(--yellow);font-weight:900}
+.rand{grid-column:1/-1;border-color:var(--yellow)!important}
+.score{font-size:44px;font-weight:700;line-height:1.1}
+.verdict{display:inline-block;padding:3px 10px;border-radius:6px;font-weight:900;margin:6px 0 10px}
+.pass{background:rgba(79,203,127,.18);color:var(--ok)} .fail{background:rgba(255,107,91,.18);color:var(--bad)}
+.log{font-size:13px;line-height:1.5;max-height:34dvh;overflow:auto;padding-left:18px;margin:0 0 6px}
+.log li.f{color:var(--bad)}
+.help{font-size:12px;color:var(--mute);line-height:1.6;margin:10px 0 0}
+</style>
+
+<div id="app">
+  <div id="view">
+    <canvas id="cv"></canvas>
+    <div id="nav" class="hud"><small>내비게이션</small><b id="navT">코스를 고르세요</b><div id="navD"></div></div>
+    <div id="spd" class="hud"><div class="n mono" id="spdN">0</div><div class="u">km/h · 제한 <span id="spdL">60</span></div></div>
+    <div id="lane" class="hud">—</div>
+    <div id="sig" class="hud"><span id="sigL">◀</span><span id="sigR">▶</span></div>
+    <div id="light" class="hud"></div>
+    <div id="toast" class="hud"></div>
+    <div id="start" class="ov"><div class="box">
+      <h1>양구 도로주행 시뮬레이터</h1>
+      <p>2종 오토. 검정원이 속도·방향지시등·차선·일시정지·양보·신호를 봅니다. 실격 항목은 그 자리에서 끝납니다.</p>
+      <div class="pick" id="pick"><button class="rand" data-c="R">🎲 시험처럼 랜덤 뽑기</button><button data-c="A">A코스</button><button data-c="B">B코스</button><button data-c="C">C코스</button><button data-c="D">D코스</button></div>
+      <div class="seg" id="seg"><button data-v="2d" class="on">2D 위에서 보기</button><button data-v="fp">운전석 시점</button></div>
+      <div class="seg" id="tlv" style="grid-template-columns:1fr 1fr 1fr"><button data-t="3">차 적음</button><button data-t="6" class="on">보통</button><button data-t="10">차 많음</button></div>
+      <button class="big belt" id="belt">안전띠 착용</button>
+      <button class="big start" id="go">출발</button>
+      <div class="help">실제 차 배치입니다. 왼쪽 레버를 위로(▲) 올리면 우깜빡이, 아래로(▼) 내리면 좌깜빡이. 가운데 핸들을 잡고 돌리고, 오른쪽 페달은 왼쪽이 브레이크, 오른쪽이 가속. 운전석 시점에는 룸미러와 사이드미러가 있습니다.<br>PC: 방향키, Q/E 깜빡이, V 시점.<br><a href="quiz.html" style="color:var(--yellow)">요령 암기 퀴즈 →</a></div>
+    </div></div>
+    <div id="end" class="ov" hidden><div class="box">
+      <h1 id="endName"></h1>
+      <div class="score mono" id="endScore"></div>
+      <div id="endV"></div>
+      <ol class="log" id="endLog"></ol>
+      <button class="big" id="again">같은 코스 다시</button>
+      <button class="big start" id="toStart">코스 선택</button>
+    </div></div>
+  </div>
+  <div id="ctl">
+    <div id="info"><span id="iName">—</span><span>⏱ <b class="mono" id="iTime">0:00</b></span><span>점수 <b class="mono" id="iScore">100</b></span><span><button class="mini" data-tap="view">시점</button> <button class="mini" data-tap="mute">음성 켬</button></span></div>
+    <div class="dash">
+      <div class="stalk"><button class="k" data-tap="R">▲<br>우깜빡이</button><button class="k" data-tap="L">▼<br>좌깜빡이</button></div>
+      <canvas id="wheel" width="300" height="300"></canvas>
+      <div class="pedals"><button class="k stop" data-hold="brake">브레이크</button><button class="k go" data-hold="gas">가속</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ================= 기하 유틸 =================
+const V=(a,b)=>[a[0]+b[0],a[1]+b[1]], S=(a,b)=>[a[0]-b[0],a[1]-b[1]], M=(a,k)=>[a[0]*k,a[1]*k];
+const LEN=a=>Math.hypot(a[0],a[1]), N=a=>M(a,1/(LEN(a)||1)), R90=a=>[a[1],-a[0]], U=t=>[Math.cos(t),Math.sin(t)];
+const dist=(a,b)=>LEN(S(a,b)), TAU=Math.PI*2;
+function offsetPoly(pts,d){const o=[];for(let i=0;i<pts.length;i++){const n1=i>0?R90(N(S(pts[i],pts[i-1]))):null,n2=i<pts.length-1?R90(N(S(pts[i+1],pts[i]))):null;let n,k=1;if(n1&&n2){n=N(V(n1,n2));k=Math.min(3,1/Math.max(.3,n[0]*n1[0]+n[1]*n1[1]));}else n=n1||n2;o.push(V(pts[i],M(n,d*k)));}return o;}
+function walker(pts){const c=[0];for(let i=0;i<pts.length-1;i++)c.push(c[i]+dist(pts[i],pts[i+1]));return{len:c[c.length-1],at(t){let i=0;while(i<c.length-2&&c[i+1]<t)i++;const a=pts[i],b=pts[i+1],u=(t-c[i])/((c[i+1]-c[i])||1);return{p:V(a,M(S(b,a),u)),dir:N(S(b,a))};}};}
+function fillet(pts,r=15){const o=[pts[0]];for(let i=1;i<pts.length-1;i++){const p=pts[i];if(isRB(p)){o.push(p);continue;}const d1=N(S(p,pts[i-1])),d2=N(S(pts[i+1],p));const th=Math.acos(Math.max(-1,Math.min(1,d1[0]*d2[0]+d1[1]*d2[1])));if(th<.05){o.push(p);continue;}const t=Math.min(r*Math.tan(th/2),dist(p,pts[i-1])/2.2,dist(p,pts[i+1])/2.2);const a=V(p,M(d1,-t)),b=V(p,M(d2,t));const n=Math.max(2,Math.ceil(th/0.15));for(let k=0;k<=n;k++){const u=k/n;const q=V(V(M(a,(1-u)*(1-u)),M(p,2*u*(1-u))),M(b,u*u));o.push(q);}}o.push(pts[pts.length-1]);return o;}
+const band=(pts,a,b)=>offsetPoly(pts,a).concat(offsetPoly(pts,b).reverse());
+const quad=(p,dir,o1,o2,len)=>{const n=R90(dir),q=V(p,M(dir,len));return[V(p,M(n,o1)),V(q,M(n,o1)),V(q,M(n,o2)),V(p,M(n,o2))];};
+
+// ================= 지도 =================
+const RBS=[[110,340],[110,500],[110,640],[30,640]], RO=15, RI=8, RP=11.5;
+const isRB=p=>RBS.find(c=>c[0]===p[0]&&c[1]===p[1]);
+const ROADS=[[[0,0],[70,70],[70,230],[110,340]],[[110,340],[110,500]],[[110,500],[110,640]],[[110,640],[30,640]],[[30,640],[30,560]],[[110,500],[-40,500],[-120,420],[-120,250]],[[-120,290],[-200,290]]];
+const CROSS=[{p:[70,150],dir:[0,1]},{p:[70,640],dir:[1,0]}];
+const SCHOOL=[[[70,110],[70,190]],[[95,640],[45,640]]];
+// ponytail: 방지턱 위치는 공개 데이터에 양구군 등록이 없어 임시값. 사용자가 실제 위치를 알려주면 이 목록만 수정.
+const BUMPS=[{p:[70,122],dir:[0,1],n:'죽리초 보호구역 입구'},{p:[70,178],dir:[0,1],n:'죽리초 보호구역 출구'},{p:[86,640],dir:[1,0],n:'양구초 횡단보도 앞'},{p:[54,640],dir:[1,0],n:'양구초 횡단보도 앞'}];
+const COL={asphalt:'#4b4f55',island:'#d8c27a',grass:'#7fa36a',yellow:'#f0c21b',white:'#eeeeee',school:'rgba(215,65,55,.35)'};
+const GROUND=[], OBJS=[]; let COURSE_G=[], COURSE_O=[];
+(function buildMap(){
+  const trim=pts=>{pts=pts.map(p=>p.slice());const f=pts[0],l=pts[pts.length-1];if(isRB(f))pts[0]=V(f,M(N(S(pts[1],f)),13));if(isRB(l))pts[pts.length-1]=V(l,M(N(S(pts[pts.length-2],l)),13));return pts;};
+  const roads=ROADS.map(r=>fillet(trim(r)));
+  roads.forEach(r=>GROUND.push({pts:band(r,-7,7),c:COL.asphalt}));
+  RBS.forEach(c=>{const o=[],i=[];for(let k=0;k<36;k++){o.push(V(c,M(U(k/36*TAU),RO)));i.push(V(c,M(U(k/36*TAU),RI)));}GROUND.push({pts:o,c:COL.asphalt});GROUND.push({pts:i,c:COL.island});});
+  SCHOOL.forEach(([a,b])=>GROUND.push({pts:band([a,b],-7,7),c:COL.school}));
+  roads.forEach(r=>{
+    GROUND.push({pts:band(r,-.35,-.1),c:COL.yellow});GROUND.push({pts:band(r,.1,.35),c:COL.yellow});
+    GROUND.push({pts:band(r,6.85,7.1),c:COL.white});GROUND.push({pts:band(r,-7.1,-6.85),c:COL.white});
+    const w=walker(r);for(let t=2;t<w.len-3;t+=8){const{p,dir}=w.at(t);GROUND.push({pts:quad(p,dir,3.4,3.6,3),c:COL.white});GROUND.push({pts:quad(p,dir,-3.6,-3.4,3),c:COL.white});}
+  });
+  BUMPS.forEach(({p,dir})=>{for(let k=-7;k<7;k+=2){GROUND.push({pts:quad(V(p,M(dir,-1.8)),dir,k,k+2,3.6),c:((k+7)/2)%2?'#2b2b2b':'#f2c230'});}});
+  CROSS.forEach(({p,dir})=>{for(let k=-6.5;k<=6.5;k+=1){GROUND.push({pts:quad(V(p,M(dir,-1.5)),dir,k-.25,k+.25,3),c:COL.white});}});
+  // 건물
+  const box=(x,y,w,d,h,c,label,ang=0,z0=0)=>OBJS.push({t:'box',x,y,w,d,h,c,label,ang,z0});
+  box(-22,8,16,22,8,'#b9b4a6','중부자동차운전전문학원');box(40,150,22,34,7,'#d7c7a8','죽리초등학교');box(86,528,13,11,5,'#e8e6dc','송청주유소');
+  box(70,672,30,18,7,'#d7c7a8','양구초등학교');box(8,540,18,40,28,'#c7ccd3','서희아파트');box(-168,370,40,60,10,'#b8c2cc','종합운동장');
+  [[135,545],[135,575],[135,605],[88,580],[-60,470],[-20,470],[135,300],[90,420],[135,460]].forEach(([x,y],i)=>box(x,y,9+i%3*2,8,4+i%4*2,['#c9b79c','#bfb8ad','#d1c3b0'][i%3],''));
+  box(101,430,.3,70,1.1,'#9aa',''); box(119,430,.3,70,1.1,'#9aa','');            // 다리 난간
+  box(99,430,.5,.5,6,'#777','');box(121,430,.5,.5,6,'#777','');box(110,430,22,.6,1.6,'#222','',0,5); // 전광판
+  OBJS.push({t:'sign',x:110,y:430,z0:5.2,w:3,text:'전광판',bg:'#111',fg:'#ffb000'});
+  OBJS.push({t:'sign',x:-205,y:300,z0:2.2,w:3,text:'하리교차로',bg:'#1b5e20',fg:'#fff'});
+  let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+  ROADS.forEach(r=>{const w=walker(r);for(let t=20;t<w.len-20;t+=22+rnd()*20){const{p,dir}=w.at(t);const side=rnd()<.5?-1:1;const q=V(p,M(R90(dir),side*(10+rnd()*4)));if(!RBS.some(c=>dist(c,q)<24))OBJS.push({t:'tree',x:q[0],y:q[1],r:1.6+rnd()*1.2});}});
+})();
+
+// ================= 코스 =================
+const JUK=[[70,110],[70,190],'죽리초'], YAN=[[95,640],[45,640],'양구초'];
+const A_PTS=[[0,0],[70,70],[70,230],[110,340],[110,500],[110,640],[30,640],[30,560]];
+const C_PTS=[[0,0],[70,70],[70,230],[110,340],[110,500],[-40,500],[-120,420],[-120,290],[-200,290]];
+const CFG={
+  A:{name:'A코스 · 학원 → 서희아파트',pts:A_PTS,laneSeq:[1,2],laneZone:[[110,395],[110,470]],hold:{a:[110,525],b:[110,615],lane:1,label:'읍내도로 1차로 주행'},stops:[[74,640]],school:[JUK,YAN]},
+  B:{name:'B코스 · 서희아파트 → 학원',pts:A_PTS.slice().reverse(),laneSeq:[1,2],laneZone:[[110,395],[110,470]],hold:{a:[110,525],b:[110,615],lane:1,label:'읍내도로 1차로 주행'},stops:[[66,640]],school:[JUK,YAN]},
+  C:{name:'C코스 · 학원 → 종합운동장·하리교차로',pts:C_PTS,laneSeq:[1,2,1],laneZone:[[110,395],[110,470]],hold:{a:[60,500],b:[-120,410],lane:2,label:'외곽도로 2차로 주행'},stops:[],light:[-120,309],school:[JUK]},
+  D:{name:'D코스 · 종합운동장 → 학원',pts:C_PTS.slice().reverse(),laneSeq:[1,2,1],laneZone:[[110,395],[110,470]],hold:{a:[60,500],b:[-120,410],lane:2,label:'외곽도로 2차로 주행'},stops:[],school:[JUK]},
+};
+function buildCourse(cfg){
+  const P=[],T=[],RBE=[];
+  const pts=fillet(cfg.pts);
+  for(let i=0;i<pts.length;i++){const p=pts[i],c=isRB(p);
+    if(!c){P.push(p);T.push('road');continue;}
+    const prev=pts[i-1],next=pts[i+1];const a0=Math.atan2(prev[1]-c[1],prev[0]-c[0]);let a1=Math.atan2(next[1]-c[1],next[0]-c[0]);
+    while(a1<=a0+.3)a1+=TAU;
+    P.push(V(c,M(U(a0),RO)));T.push('road');
+    const rb={c,i0:P.length,sig:(a1-a0)<Math.PI*.75?'R':'L',label:(a1-a0)<Math.PI*.75?'우회전 (3시)':(a1-a0)<Math.PI*1.25?'직진 (12시)':'좌측 (9시)',a0};
+    for(let a=a0;a<a1;a+=TAU/36){P.push(V(c,M(U(a),RP)));T.push('ring');}
+    P.push(V(c,M(U(a1),RP)));T.push('ring');rb.i1=P.length-1;
+    P.push(V(c,M(U(a1),RO)));T.push('road');RBE.push(rb);
+  }
+  const SS=[0];for(let i=0;i<P.length-1;i++)SS.push(SS[i]+dist(P[i],P[i+1]));
+  const proj=(q,ls=null)=>{let best=null;for(let i=0;i<P.length-1;i++){if(ls!==null&&(SS[i+1]<ls-25||SS[i]>ls+80))continue;const a=P[i],b=P[i+1],ab=S(b,a),l2=ab[0]*ab[0]+ab[1]*ab[1];let u=((q[0]-a[0])*ab[0]+(q[1]-a[1])*ab[1])/(l2||1);u=Math.max(0,Math.min(1,u));const pp=V(a,M(ab,u));const dd=dist(q,pp);if(!best||dd<best.dd){const dir=N(ab);best={dd,s:SS[i]+u*LEN(ab),d:-(dir[0]*(q[1]-a[1])-dir[1]*(q[0]-a[0])),i,type:T[i+1]==='ring'&&T[i]==='ring'?'ring':'road',dir};}}return best;};
+  const at=s=>{s=Math.max(0,Math.min(SS[SS.length-1],s));let i=0;while(i<SS.length-2&&SS[i+1]<s)i++;const u=(s-SS[i])/((SS[i+1]-SS[i])||1);return{p:V(P[i],M(S(P[i+1],P[i]),u)),dir:N(S(P[i+1],P[i])),type:(T[i]==='ring'&&T[i+1]==='ring')?'ring':'road'};};
+  RBE.forEach(r=>{r.sIn=SS[r.i0];r.sOut=SS[r.i1];});
+  const c={cfg,P,T,SS,proj,at,RBE,sEnd:SS[SS.length-1],nav:[]};
+  const sOf=p=>proj(p).s;
+  RBE.forEach(r=>c.nav.push({s:r.sIn,kind:'rb',text:'회전교차로 '+r.label,sign:'회전교차로\n'+r.label.split(' ')[0],sig:r.sig,speak:`회전교차로에서 ${r.label.split(' ')[0]} 방향입니다`}));
+  c.school=cfg.school.map(([a,b,n])=>{const z=[sOf(a),sOf(b)].sort((x,y)=>x-y);c.nav.push({s:z[0],kind:'school',text:`${n} 어린이보호구역 — 30km (40 이상 실격)`,sign:'어린이\n보호구역\n40',speak:'어린이 보호구역입니다. 30킬로로 서행하세요'});return{a:z[0],b:z[1],n};});
+  {const z=[sOf(cfg.laneZone[0]),sOf(cfg.laneZone[1])].sort((x,y)=>x-y);c.lz={a:z[0],b:z[1],seq:[],done:false};c.nav.push({s:z[0]-10,kind:'lane',text:'차선변경 구간 — '+cfg.laneSeq.map(l=>l+'차로').join(' → '),sign:'차선변경\n구간',speak:'차선변경 구간입니다. '+cfg.laneSeq.map(l=>l+'차로').join(', ')+' 순서로 변경하세요'});}
+  {const z=[sOf(cfg.hold.a),sOf(cfg.hold.b)].sort((x,y)=>x-y);c.hz={a:z[0],b:z[1],lane:cfg.hold.lane,ok:0,bad:0,done:false};c.nav.push({s:z[0],kind:'hold',text:cfg.hold.label,sign:cfg.hold.lane+'차로\n주행',speak:cfg.hold.label+' 구간입니다'});}
+  c.stops=cfg.stops.map(p=>{const s=sOf(p);c.nav.push({s,kind:'stop',text:'양구초 횡단보도 — 정지선 일시정지',sign:'횡단보도\n일시정지',speak:'횡단보도 앞 정지선에 일시정지하세요'});const{p:pp,dir}=at(s);COURSE_G.push({pts:quad(V(pp,M(dir,-.3)),dir,.3,6.8,.5),c:COL.white});return{s,done:false,checked:false};});
+  if(cfg.light){const s=sOf(cfg.light);c.light={s,set:false,red:false,ped:true,stopped:false,stopT:0,checked:false};c.nav.push({s,kind:'light',text:'종합운동장 방면 우회전 — 신호등 확인',sign:'신호등\n우회전',speak:'우회전입니다. 적신호면 정지선에 일시정지하세요'});const{p:pp,dir}=at(s);COURSE_G.push({pts:quad(V(pp,M(dir,-.3)),dir,.3,6.8,.5),c:COL.white});COURSE_O.push({t:'light',x:pp[0]+R90(dir)[0]*8.5+dir[0]*6,y:pp[1]+R90(dir)[1]*8.5+dir[1]*6,z0:4.5,w:1.2});}
+  c.bumps=[];BUMPS.forEach(b=>{const pr=proj(b.p);if(pr.dd<2.5&&pr.type==='road'){c.bumps.push({s:pr.s,n:b.n,done:false});c.nav.push({s:pr.s,kind:'bump',text:'방지턱 — 20km 이하로 감속',sign:'방지턱',speak:'방지턱입니다. 속도를 줄이세요'});}});
+  c.nav.push({s:c.sEnd,kind:'end',text:'목적지 — 우측 방향지시등 켜고 천천히 정차',sign:'목적지',speak:'목적지 부근입니다. 우측 방향지시등을 켜고 안전하게 정차하세요'});
+  c.nav.push({s:0,kind:'start',text:'출발 — 좌측 방향지시등 켜고 출발',sign:'',speak:''});
+  c.nav.sort((x,y)=>x.s-y.s);c.nav.forEach(n=>n.said=false);
+  c.nav.forEach(n=>{if(n.s<45||n.kind==='end')return;const{p,dir}=at(n.s-38);const q=V(p,M(R90(dir),8.6));COURSE_O.push({t:'sign',x:q[0],y:q[1],z0:2,w:2.4,text:n.sign,bg:n.kind==='school'?'#f5c518':n.kind==='stop'?'#c62828':'#1b4f8a',fg:n.kind==='school'?'#201a00':'#fff'});});
+  return c;
+}
+
+// ================= 상태 =================
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d');
+let W=0,H=0,DPR=1;
+function resize(){DPR=Math.min(2,devicePixelRatio||1);W=cv.clientWidth;H=cv.clientHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',resize);resize();
+const keys={left:false,right:false,gas:false,brake:false};
+let traffic=[],oncoming=[],trafficLevel=6,spawnT=0;
+let view='2d',muted=false,course=null,courseKey='A',car=null,running=false,log=[],score=100,failReason=null,elapsed=0,npcs=[],toastT=0,belt=false,blink=0;
+
+function say(t){if(muted||!('speechSynthesis'in window))return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='ko-KR';u.rate=1.05;speechSynthesis.speak(u);}catch(e){}}
+function toast(t,ok){const el=$('toast');el.textContent=t;el.className='hud show'+(ok?' ok':'');toastT=3.5;}
+function deduct(pts,text){if(!running)return;score=Math.max(0,score-pts);log.push({text:`-${pts} ${text}`,f:false});toast(`검정원: ${text} (-${pts})`);say(text);}
+function fail(text){if(!running)return;failReason=text;log.push({text:'실격: '+text,f:true});toast('실격: '+text);say('실격. '+text);finish();}
+function note(text){if(!running)return;log.push({text,f:false,ok:true});toast(text,true);}
+
+function startCourse(k){
+  courseKey=k;course=buildCourse(CFG[k]);COURSE_G=[];COURSE_O=[];course=buildCourse(CFG[k]); // 코스 전용 지면/표지 재생성
+  const{p,dir}=course.at(0.5);const q=V(p,M(R90(dir),1.75));
+  car={x:q[0],y:q[1],ang:Math.atan2(dir[1],dir[0]),v:0,steer:0,sig:'',sigAng:0,sigT:0,s:0,d:1.75,lane:1,type:'road',rbIdx:-1,exitT:0};
+  running=true;log=[];score=100;failReason=null;elapsed=0;toastT=0;$('toast').classList.remove('show');
+  traffic=[];oncoming=[];spawnT=1;
+  npcs=course.RBE.map(r=>({c:r.c,a0:r.a0,a:Math.random()*TAU,w:5.5/RP,on:false,life:28,chance:Math.random()<.65}));
+  $('iName').textContent=CFG[k].name;$('start').hidden=true;$('end').hidden=true;$('light').style.display=CFG[k].light?'block':'none';
+  say(CFG[k].name.split(' ')[0]+'. '+(belt?'':'안전띠를 확인하고, ')+'좌측 방향지시등을 켜고 출발하세요');
+  $('navT').textContent='출발 — 좌측 방향지시등 켜고 출발';$('navD').textContent='';
+}
+function finish(){
+  if(!running)return;running=false;
+  const el=$('end');$('endName').textContent=CFG[courseKey].name;
+  $('endScore').textContent=failReason?'실격':score+'점';
+  $('endV').innerHTML=failReason?`<span class="verdict fail">${failReason}</span>`:score>=70?`<span class="verdict pass">합격권 · ${fmt(elapsed)}</span>`:`<span class="verdict fail">70점 미만 · ${fmt(elapsed)}</span>`;
+  $('endLog').innerHTML=log.length?log.map(l=>`<li class="${l.f?'f':''}">${l.text}</li>`).join(''):'<li>지적 사항 없음.</li>';
+  el.hidden=false;
+}
+const fmt=t=>`${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,'0')}`;
+
+// ================= 교통 (다른 차) =================
+const CARCOL=['#c0392b','#2980b9','#95a5a6','#f1c40f','#ecf0f1','#34495e','#27ae60','#8e44ad','#e67e22'];
+const laneOff=l=>l===1?1.75:5.25, pickCol=()=>CARCOL[Math.floor(Math.random()*CARCOL.length)];
+function vehNear(s,lat,r){return traffic.some(t=>Math.abs(t.s-s)<r&&Math.abs(t.lat-lat)<2.5)||(Math.abs(car.s-s)<r&&Math.abs(car.d-lat)<2.5);}
+function spawnSame(behind){const s=behind?car.s-60-Math.random()*120:car.s+60+Math.random()*120;if(s<2||s>course.sEnd-80)return;const lane=Math.random()<.5?1:2;if(vehNear(s,laneOff(lane),14))return;
+  const vd=(62+Math.random()*18)/3.6;traffic.push({s,lat:laneOff(lane),tl:lane,v:behind?vd:vd*.85,vd,ph:Math.random()*TAU,cool:0,col:pickCol()});}
+function spawnOn(){const s=car.s+120+Math.random()*220;if(s>course.sEnd-20)return;const lat=Math.random()<.5?-1.75:-5.25;if(oncoming.some(o=>Math.abs(o.s-s)<16&&o.lat===lat))return;oncoming.push({s,lat,v:(55+Math.random()*25)/3.6,col:pickCol()});}
+function aheadOf(s,lat,self,withLight,tol=2.5){let best=null;const consider=(ss,ll,vv,tt=tol)=>{if(ss>s&&Math.abs(ll-lat)<tt){const g=ss-s-4.4;if(!best||g<best.g)best={g,v:vv};}};
+  traffic.forEach(t=>{if(t!==self)consider(t.s,t.lat,t.v);});if(self)consider(car.s,car.d,car.v,Math.max(tol,3.4));
+  const L=course.light;if(withLight&&L&&L.set&&L.red&&L.ped)consider(L.s+2.5,lat,0);
+  if(self){const r=course.RBE.find(r=>s>r.sIn-14&&s<r.sIn);const n=r&&npcs.find(q=>q.on&&q.c===r.c);if(n){const gap=(((r.a0-n.a)%TAU)+TAU)%TAU;if(gap<1.6)consider(r.sIn-1.5,lat,0);}}
+  return best;}
+function updateTraffic(dt){
+  spawnT-=dt;if(spawnT<=0){spawnT=2.5+Math.random()*4;if(traffic.length<trafficLevel)spawnSame(car.s>160||Math.random()<.3);if(oncoming.length<Math.ceil(trafficLevel/2))spawnOn();}
+  traffic.forEach(t=>{const a=course.at(t.s);const ring=a.type==='ring';const rbNear=course.RBE.some(r=>t.s>r.sIn-40&&t.s<r.sOut+8);
+    let vd=t.vd+Math.sin(elapsed*.35+t.ph)*1.4;if(rbNear)vd=Math.min(vd,28/3.6);if(course.school.some(z=>t.s>z.a-20&&t.s<z.b))vd=Math.min(vd,46/3.6);if(course.bumps.some(b=>t.s>b.s-18&&t.s<b.s+2))vd=Math.min(vd,22/3.6);
+    const appr=course.RBE.find(r=>t.s>r.sIn-35&&t.s<r.sIn);
+    const ah=aheadOf(t.s,t.lat,t,true,(appr||ring)?9:2.5);let acc=Math.max(-3,Math.min(2,(vd-t.v)*.5));t.cool-=dt;
+    if(ah){const want=t.v*1.0+5;if(ah.g<want)acc=Math.max(-7.5,Math.min(acc,(ah.g-want)*.6+(ah.v-t.v)*1.2));
+      const noPass=ring||rbNear||course.stops.some(st=>t.s>st.s-35&&t.s<st.s+5)||(course.light&&t.s>course.light.s-45);
+      if(!noPass&&t.cool<=0&&ah.g<t.v*2.5+10&&ah.v<vd-1.5&&Math.abs(t.lat-laneOff(t.tl))<.3){const other=t.tl===1?2:1,lo=laneOff(other);
+        const free=!traffic.some(o=>o!==t&&Math.abs(o.lat-lo)<2.5&&o.s>t.s-25-o.v*.5&&o.s<t.s+ah.g+8)&&!(Math.abs(car.d-lo)<2.5&&car.s>t.s-25&&car.s<t.s+ah.g+8);
+        if(free){t.tl=other;t.cool=6;}}}
+    t.v=Math.max(0,t.v+acc*dt);t.s+=t.v*dt;
+    const target=ring?0:appr?1.75:laneOff(t.tl);let dl=target-t.lat;
+    if(Math.abs(dl)>.3){const blocked=traffic.some(o=>o!==t&&Math.abs(o.lat-target)<2.5&&o.s>t.s-7&&o.s<t.s+10)||(Math.abs(car.d-target)<2.5&&car.s>t.s-7&&car.s<t.s+10);if(blocked){dl=0;t.v=Math.max(0,t.v-2.5*dt);}}
+    t.lat+=Math.max(-1.6*dt,Math.min(1.6*dt,dl));
+    const p=course.at(t.s);t.x=p.p[0]+R90(p.dir)[0]*t.lat;t.y=p.p[1]+R90(p.dir)[1]*t.lat;t.ang=Math.atan2(p.dir[1],p.dir[0])-Math.sign(dl)*Math.min(Math.abs(dl),1)*.3;
+  });
+  traffic=traffic.filter(t=>t.s<course.sEnd-6&&t.s-car.s<320&&t.s-car.s>-220);
+  oncoming.forEach(o=>{o.s-=o.v*dt;const p=course.at(o.s);o.x=p.p[0]+R90(p.dir)[0]*o.lat;o.y=p.p[1]+R90(p.dir)[1]*o.lat;o.ang=Math.atan2(-p.dir[1],-p.dir[0]);});
+  oncoming=oncoming.filter(o=>o.s>car.s-70&&o.s>3&&!RBS.some(c=>dist(c,[o.x,o.y])<23));
+}
+// ================= 물리 + 채점 =================
+function step(dt){
+  elapsed+=dt;blink+=dt;
+  const c=car;
+  const acc=keys.gas?2.3:keys.brake?-6:-.55;c.v=Math.max(0,c.v+acc*dt);
+  if(wheel.held||Math.abs(wheel.ang)>.01){if(!wheel.held){const back=dt*6;wheel.ang=Math.abs(wheel.ang)<back?0:wheel.ang-Math.sign(wheel.ang)*back;}c.steer=wheel.ang/wheel.max;}
+  else{const tgt=keys.left?-1:keys.right?1:0;const r=dt/0.28;c.steer+=Math.max(-r,Math.min(r,tgt-c.steer));}
+  const kmh=c.v*3.6;const maxSt=.5-(.5-.12)*Math.max(0,Math.min(1,(kmh-15)/55));
+  c.ang-=(c.v/2.7)*Math.tan(c.steer*maxSt)*dt;
+  c.x+=Math.cos(c.ang)*c.v*dt;c.y+=Math.sin(c.ang)*c.v*dt;
+  if(c.sig){c.sigT+=dt;let da=c.ang-c.sigAng;da=Math.atan2(Math.sin(da),Math.cos(da));if(c.type!=='ring'&&c.sigT>2&&Math.abs(da)>.85&&Math.abs(c.steer)<.15)c.sig='';}
+  npcs.forEach(n=>{if(!n.on&&n.chance&&dist([c.x,c.y],n.c)<75){n.on=true;}if(n.on){n.a+=n.w*dt;n.life-=dt;if(n.life<0)n.on=false;n.x=n.c[0]+Math.cos(n.a)*RP;n.y=n.c[1]+Math.sin(n.a)*RP;if(dist([c.x,c.y],[n.x,n.y])<3.4)fail('회전차량과 충돌 (교통사고)');if(c.type==='ring'&&dist([c.x,c.y],n.c)<RO+3){let ah=n.a-Math.atan2(c.y-n.c[1],c.x-n.c[0]);ah=((ah%TAU)+TAU)%TAU;if(ah>1.9&&ah<4.5)n.on=false;}}});
+  if(!running)return;
+  updateTraffic(dt);
+  const hit=v=>{const dx=v.x-c.x,dy=v.y-c.y,lx=dx*Math.cos(c.ang)+dy*Math.sin(c.ang),ly=-dx*Math.sin(c.ang)+dy*Math.cos(c.ang);return Math.abs(lx)<4.3&&Math.abs(ly)<1.9;};
+  for(const v of traffic)if(hit(v))return fail('교통사고 (다른 차량과 충돌)');
+  for(const v of oncoming)if(hit(v))return fail('교통사고 (마주 오는 차량과 충돌)');
+  // ---- 위치 판정
+  const pr=course.proj([c.x,c.y],c.s);c.s=pr.s;c.d=pr.d;
+  const prevType=c.type;c.type=pr.type;
+  const nearRB=RBS.some(q=>dist(q,[c.x,c.y])<21);
+  const fwd=[Math.cos(c.ang),Math.sin(c.ang)];
+  if(c.v>1.5&&fwd[0]*pr.dir[0]+fwd[1]*pr.dir[1]<-.3)return fail('역주행 (진행 방향 반대)');
+  if(c.type==='road'){let ln=pr.d<-.9?'center':pr.d>7?'off':null;
+    if(ln===null){const pv=c.lane;ln=pv===1?(pr.d>4.1?2:1):pv===2?(pr.d<2.9?1:2):(pr.d<3.5?1:2);}
+    if(typeof c.lane==='number'&&typeof ln==='number'&&ln!==c.lane&&!nearRB&&c.s>12&&c.s<course.sEnd-20){const need=ln>c.lane?'R':'L';if(c.sig!==need)deduct(5,`차선변경 시 ${need==='L'?'좌측':'우측'} 방향지시등 미점등`);}
+    c.lane=ln;
+    if(!nearRB&&c.s>12&&c.s<course.sEnd-6){if(c.lane==='center')return fail('중앙선 침범');if(pr.d>7.9)return fail('도로 이탈');}
+  }else{c.lane='ring';if(pr.d<-3.6)return fail('회전교차로 중앙 안전지대 침범');if(pr.d>4.6)return fail('도로 이탈');}
+  if(c.v>.5&&!belt)return fail('좌석안전띠 미착용');
+  if(c.v>.5&&!c.startChecked){c.startChecked=true;if(c.sig!=='L')deduct(5,'출발 시 좌측 방향지시등 미점등');else note('출발 OK (좌측 방향지시등)');}
+  // ---- 안전거리
+  const ahP=aheadOf(c.s,c.d,null,false);c.sdCool=(c.sdCool||0)-dt;
+  if(ahP&&ahP.g<c.v*.7&&c.v>6&&ahP.v>1){c.sdT=(c.sdT||0)+dt;if(c.sdT>2.5&&c.sdCool<=0){deduct(5,'안전거리 미확보 (앞차와 너무 가까움)');c.sdCool=15;c.sdT=0;}}else c.sdT=0;
+  // ---- 속도
+  const sch=course.school.find(z=>c.s>=z.a&&c.s<=z.b);const lim=sch?40:70;
+  if(kmh>=lim)return fail(sch?`어린이보호구역 ${lim}km 이상 (${Math.round(kmh)}km)`:`제한속도 초과 (${Math.round(kmh)}km, 70 이상 실격)`);
+  // ---- 회전교차로 진입/진출
+  if(prevType==='road'&&c.type==='ring'){const rb=course.RBE.find(r=>dist(r.c,[c.x,c.y])<RO+2);if(rb){
+    if(kmh>31)deduct(5,`회전교차로 진입 속도 30km 초과 (${Math.round(kmh)}km)`);
+    if(c.sig!==rb.sig)deduct(5,`회전교차로 진입 시 ${rb.sig==='L'?'좌측':'우측'} 방향지시등 미점등`);
+    const n=npcs.find(q=>q.on&&q.c===rb.c);if(n){let gap=rb.a0-n.a;gap=((gap%TAU)+TAU)%TAU;if(gap<1.35)return fail('회전차량 양보 위반 (좌측에서 오는 차 있을 때 진입 전 정차)');}
+    if(c.sig===rb.sig&&kmh<=31)note('회전교차로 진입 OK');
+  }}
+  if(prevType==='ring'&&c.type==='road'){if(c.sig!=='R')deduct(5,'회전교차로 진출 시 우측 방향지시등 미점등');else note('진출 OK');}
+  // ---- 차선변경 구간
+  const lz=course.lz;if(!lz.done){if(c.s>=lz.a&&c.s<=lz.b&&typeof c.lane==='number'&&lz.seq[lz.seq.length-1]!==c.lane)lz.seq.push(c.lane);
+    if(c.s>lz.b){lz.done=true;const want=course.cfg.laneSeq;const ok=lz.seq.length===want.length&&lz.seq.every((l,i)=>l===want[i]);if(!ok)deduct(7,`차선변경 미이행 (${lz.seq.map(l=>l+'차로').join('→')||'기록 없음'} / 요령: ${want.map(l=>l+'차로').join('→')})`);else note('차선변경 OK');}}
+  const hz=course.hz;if(!hz.done){if(c.s>=hz.a&&c.s<=hz.b&&typeof c.lane==='number'){if(c.lane===hz.lane)hz.ok+=dt;else hz.bad+=dt;}
+    if(c.s>hz.b){hz.done=true;if(hz.bad>(hz.ok+hz.bad)*.4)deduct(5,course.cfg.hold.label+' 미이행');else note(course.cfg.hold.label+' OK');}}
+  // ---- 방지턱
+  c.bumpT=Math.max(0,(c.bumpT||0)-dt);
+  course.bumps.forEach(b=>{if(!b.done&&c.s>b.s){b.done=true;c.bumpT=.6;c.bumpV=c.v;if(kmh>25)deduct(5,`방지턱 감속 미흡 (${Math.round(kmh)}km, 20km 이하 권장)`);else note('방지턱 OK');}});
+  // ---- 횡단보도 일시정지
+  course.stops.forEach(st=>{if(c.s>=st.s-12&&c.s<=st.s+.5&&c.v<.3)st.done=true;if(c.s>st.s+.5&&!st.checked){st.checked=true;if(!st.done)fail('횡단보도 정지선 일시정지 위반 (보행자 보호 위반)');else note('횡단보도 일시정지 OK');}});
+  // ---- 신호등 우회전 (C)
+  const lt=course.light;if(lt){if(!lt.set&&c.s>lt.s-90){lt.set=true;lt.red=Math.random()<.6;lt.ped=lt.red;}
+    if(lt.set&&lt.red){if(c.s>=lt.s-12&&c.s<=lt.s+.5&&c.v<.3){lt.stopped=true;lt.stopT+=dt;if(lt.stopT>4)lt.ped=false;}}
+    if(lt.set&&c.s>lt.s+.5&&!lt.checked){lt.checked=true;
+      if(lt.red){if(!lt.stopped)return fail('신호위반 (적신호 시 정지선 일시정지 없음)');if(lt.ped)return fail('보행자 신호 녹색일 때 우회전 (보행자 보호 위반)');if(kmh>25)deduct(5,'우회전 시 서행 미이행');else note('적신호 우회전 OK');}
+      else{if(kmh>30)deduct(5,'녹색 신호 우회전 서행 미이행');else note('우회전 OK');}}
+    $('light').innerHTML=lt.set?`차량신호 <b style="color:${lt.red?'#ff6b5b':'#4fcb7f'}">${lt.red?'적색':'녹색'}</b> · 보행자 <b style="color:${lt.ped?'#4fcb7f':'#ff6b5b'}">${lt.ped?'녹색':'적색'}</b>`:'신호등 접근 중';
+  }
+  // ---- 도착
+  if(c.s>course.sEnd-12&&c.v<.2&&c.s>20){if(c.sig!=='R')deduct(5,'도착 시 우측 방향지시등 미점등');else note('도착 OK (우측 방향지시등)');return finish();}
+  if(c.s>course.sEnd+8){deduct(5,'목적지 지나침');return finish();}
+  // ---- 내비
+  const nx=course.nav.find(n=>n.s>c.s-6);
+  if(nx){const dd=Math.max(0,Math.round(nx.s-c.s));$('navT').textContent=nx.text;$('navD').textContent=dd>0?`${dd} m 앞`:'지금';if(!nx.said&&nx.s-c.s<110&&nx.speak){nx.said=true;say(`${dd>15?dd+'미터 앞 ':''}${nx.speak}`);}}
+  $('spdL').textContent=sch?'40 (30 권장)':'60';
+}
+
+// ================= 렌더 =================
+function render(){
+  ctx.clearRect(0,0,W,H);
+  if(!car){ctx.fillStyle=COL.grass;ctx.fillRect(0,0,W,H);return;}
+  if(view==='2d')draw2D();else drawFP();
+  const c=car,kmh=Math.round(c.v*3.6);
+  $('spdN').textContent=kmh;const sch=course&&course.school.find(z=>c.s>=z.a&&c.s<=z.b);$('spd').className='hud'+(kmh>=(sch?40:70)-5?' over':'');
+  $('lane').textContent=c.lane==='ring'?'회전교차로 안':typeof c.lane==='number'?c.lane+'차로':c.lane==='center'?'중앙선!':'차로 이탈';
+  const on=Math.floor(blink*3)%2===0;$('sigL').className=c.sig==='L'&&on?'on':'';$('sigR').className=c.sig==='R'&&on?'on':'';
+  document.querySelector('[data-tap="L"]').classList.toggle('on',c.sig==='L');document.querySelector('[data-tap="R"]').classList.toggle('on',c.sig==='R');
+  $('iTime').textContent=fmt(elapsed);$('iScore').textContent=score;wheel.draw();$('sig').style.display=view==='fp'?'none':'flex';if(view!=='fp')$('nav').style.top='8px';
+}
+function allObjs(){return OBJS.concat(COURSE_O,traffic.concat(oncoming).filter(v=>v.x!==undefined).map(v=>({t:'box',x:v.x,y:v.y,w:1.8,d:4.3,h:1.45,c:v.col,ang:v.ang,z0:0,car:true})),npcs.filter(n=>n.on).map(n=>({t:'box',x:n.x,y:n.y,w:1.8,d:4.3,h:1.5,c:'#3b6fd6',ang:n.a+Math.PI/2,z0:0,car:true})));}
+function boxCorners(o){const ca=Math.cos(o.ang),sa=Math.sin(o.ang);return[[-o.d/2,-o.w/2],[o.d/2,-o.w/2],[o.d/2,o.w/2],[-o.d/2,o.w/2]].map(([u,v])=>[o.x+u*ca-v*sa,o.y+u*sa+v*ca]);}
+function draw2D(){
+  const c=car,k=Math.min(W,H)/62,cx=W/2,cy=H*.64,rot=Math.PI/2-c.ang;
+  const w2s=(px,py)=>{const dx=px-c.x,dy=py-c.y,rx=dx*Math.cos(rot)-dy*Math.sin(rot),ry=dx*Math.sin(rot)+dy*Math.cos(rot);return[cx+rx*k,cy-ry*k];};
+  ctx.fillStyle=COL.grass;ctx.fillRect(0,0,W,H);
+  ctx.save();ctx.translate(cx,cy);ctx.scale(k,-k);ctx.rotate(rot);ctx.translate(-c.x,-c.y);
+  const R=Math.max(W,H)/k*.8;
+  const poly=(pts,col)=>{ctx.fillStyle=col;ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();ctx.fill();};
+  GROUND.concat(COURSE_G).forEach(g=>{if(!g.bb){g.bb=[Infinity,Infinity,-Infinity,-Infinity];g.pts.forEach(p=>{g.bb[0]=Math.min(g.bb[0],p[0]);g.bb[1]=Math.min(g.bb[1],p[1]);g.bb[2]=Math.max(g.bb[2],p[0]);g.bb[3]=Math.max(g.bb[3],p[1]);});}const b=g.bb;if(c.x>b[0]-R&&c.x<b[2]+R&&c.y>b[1]-R&&c.y<b[3]+R)poly(g.pts,g.c);});
+  const objs=allObjs();
+  objs.forEach(o=>{if(dist([o.x,o.y],[c.x,c.y])>R+30)return;
+    if(o.t==='box')poly(boxCorners(o),o.c);
+    else if(o.t==='tree'){ctx.fillStyle='#3f7a3a';ctx.beginPath();ctx.arc(o.x,o.y,o.r,0,TAU);ctx.fill();}
+    else if(o.t==='sign'){ctx.fillStyle=o.bg;ctx.fillRect(o.x-1,o.y-1,2,2);}
+    else if(o.t==='light'){ctx.fillStyle=course.light&&course.light.set&&course.light.red?'#e53935':'#43a047';ctx.beginPath();ctx.arc(o.x,o.y,1.4,0,TAU);ctx.fill();}
+  });
+  // 내 차
+  ctx.translate(c.x,c.y);ctx.rotate(c.ang);ctx.fillStyle='#f4f4f4';ctx.fillRect(-2.2,-.9,4.4,1.8);ctx.fillStyle='#2a3a4a';ctx.fillRect(.4,-.75,1.1,1.5);ctx.fillRect(-1.6,-.75,.8,1.5);
+  const on=Math.floor(blink*3)%2===0;if(c.sig&&on){ctx.fillStyle='#ffa000';const sy=c.sig==='L'?.9:-.9;ctx.fillRect(1.7,sy-.25,.5,.5);ctx.fillRect(-2.2,sy-.25,.5,.5);}
+  ctx.restore();
+  ctx.font='bold 12px "Noto Sans KR",sans-serif';ctx.textAlign='center';ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.55)';ctx.fillStyle='#fff';
+  objs.forEach(o=>{if(!(o.label||o.t==='sign')||dist([o.x,o.y],[c.x,c.y])>R)return;const[sx,sy]=w2s(o.x,o.y);const lines=(o.label||o.text).split('\n');lines.forEach((l,i)=>{ctx.strokeText(l,sx,sy+i*13);ctx.fillText(l,sx,sy+i*13);});});
+}
+const NEAR=.45;
+function drawScene(x0,y0,w,h,cam,camAng,o){
+  const camH=1.3,f=w*(o.fF||.95),hor=h*(o.horF||.44)+(o.dy||0),FAR=o.far||420;
+  const ca=Math.cos(camAng),sa=Math.sin(camAng);
+  const toCam=(p,hh=0)=>{const dx=p[0]-cam[0],dy=p[1]-cam[1];return{x:dx*sa-dy*ca,z:dx*ca+dy*sa,h:hh};};
+  const proj=p=>[w/2+f*p.x/p.z,hor+f*(camH-p.h)/p.z];
+  const clip=pts=>{const r=[];for(let i=0;i<pts.length;i++){const a=pts[i],b=pts[(i+1)%pts.length],ia=a.z>=NEAR,ib=b.z>=NEAR;if(ia)r.push(a);if(ia!==ib){const t=(NEAR-a.z)/(b.z-a.z);r.push({x:a.x+(b.x-a.x)*t,z:NEAR,h:a.h+(b.h-a.h)*t});}}return r;};
+  const fill3=(pts,col)=>{if(pts.every(p=>p.z<NEAR))return;let far=1e9;pts.forEach(p=>far=Math.min(far,p.z));if(far>FAR)return;const q=clip(pts);if(q.length<3)return;ctx.fillStyle=col;ctx.beginPath();q.forEach((p,i)=>{const t=proj(p);i?ctx.lineTo(t[0],t[1]):ctx.moveTo(t[0],t[1]);});ctx.closePath();ctx.fill();};
+  ctx.save();ctx.beginPath();ctx.rect(x0,y0,w,h);ctx.clip();
+  if(o.mirror){ctx.translate(x0+w,y0);ctx.scale(-1,1);}else ctx.translate(x0,y0);
+  const sky=ctx.createLinearGradient(0,0,0,hor);sky.addColorStop(0,'#5f9fe0');sky.addColorStop(1,'#cfe3f5');ctx.fillStyle=sky;ctx.fillRect(0,0,w,hor);
+  ctx.fillStyle='#86a870';ctx.fillRect(0,hor,w,h-hor);
+  GROUND.concat(COURSE_G).forEach(g=>fill3(g.pts.map(p=>toCam(p)),g.c));
+  const objs=allObjs().map(ob=>({o:ob,cp:toCam([ob.x,ob.y])})).filter(e=>e.cp.z>-6&&e.cp.z<FAR&&Math.abs(e.cp.x)<e.cp.z*1.4+20).sort((a,b)=>b.cp.z-a.cp.z);
+  const shade=(col,k)=>{const n=parseInt(col.slice(1),16);return`rgb(${Math.round(((n>>16)&255)*k)},${Math.round(((n>>8)&255)*k)},${Math.round((n&255)*k)})`;};
+  ctx.textAlign='center';
+  objs.forEach(({o:ob,cp})=>{
+    if(ob.t==='box'){const cs=boxCorners(ob);const z0=ob.z0||0,z1=z0+ob.h;const walls=[];for(let i=0;i<4;i++){const a=cs[i],b=cs[(i+1)%4];walls.push({pts:[toCam(a,z0),toCam(b,z0),toCam(b,z1),toCam(a,z1)],k:[.78,.62,.78,.62][i]});}
+      walls.map(wl=>({wl,z:wl.pts.reduce((t,p)=>t+p.z,0)})).sort((a,b)=>b.z-a.z).forEach(({wl})=>fill3(wl.pts,shade(ob.c,wl.k)));
+      fill3(cs.map(p=>toCam(p,z1)),shade(ob.c,1));
+      if(ob.car){fill3([toCam(cs[0],.7),toCam(cs[3],.7),toCam(cs[3],1.3),toCam(cs[0],1.3)],'#1a2a44');fill3([toCam(cs[1],.7),toCam(cs[2],.7),toCam(cs[2],1.3),toCam(cs[1],1.3)],'#1a2a44');}
+      if(ob.label&&!o.mirror&&cp.z>NEAR&&cp.z<160){const t=proj({x:cp.x,z:cp.z,h:z1+1.5});const fs=Math.min(22,Math.max(7,f*2.2/cp.z));ctx.font=`bold ${fs}px "Noto Sans KR",sans-serif`;ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.5)';ctx.fillStyle='#fff';ctx.strokeText(ob.label,t[0],t[1]);ctx.fillText(ob.label,t[0],t[1]);}
+    }else if(ob.t==='tree'){if(cp.z<NEAR)return;const base=proj({x:cp.x,z:cp.z,h:0}),top=proj({x:cp.x,z:cp.z,h:3.2});const r=f*ob.r/cp.z;ctx.strokeStyle='#5a3d22';ctx.lineWidth=Math.max(1,f*.3/cp.z);ctx.beginPath();ctx.moveTo(base[0],base[1]);ctx.lineTo(top[0],top[1]);ctx.stroke();ctx.fillStyle='#3f7a3a';ctx.beginPath();ctx.arc(top[0],top[1]-r*.6,r,0,TAU);ctx.fill();
+    }else if(ob.t==='sign'||ob.t==='light'){if(cp.z<NEAR)return;const z0=ob.z0,ww=ob.w;const base=proj({x:cp.x,z:cp.z,h:0}),b0=proj({x:cp.x,z:cp.z,h:z0});const hw=f*(ww/2)/cp.z,hh=f*ww/cp.z;
+      if(ob.t==='sign'&&ob.z0<4){ctx.strokeStyle='#666';ctx.lineWidth=Math.max(1,f*.12/cp.z);ctx.beginPath();ctx.moveTo(base[0],base[1]);ctx.lineTo(b0[0],b0[1]);ctx.stroke();}
+      if(ob.t==='light'){ctx.strokeStyle='#444';ctx.lineWidth=Math.max(1,f*.2/cp.z);ctx.beginPath();ctx.moveTo(base[0],base[1]);ctx.lineTo(b0[0],b0[1]);ctx.stroke();ctx.fillStyle='#222';ctx.fillRect(b0[0]-hw,b0[1]-hh,hw*2,hh);const red=course.light.set&&course.light.red;ctx.fillStyle=red?'#ff1744':'#00e676';ctx.beginPath();ctx.arc(b0[0],b0[1]-hh/2,hw*.6,0,TAU);ctx.fill();return;}
+      ctx.fillStyle=ob.bg;ctx.fillRect(b0[0]-hw,b0[1]-hh,hw*2,hh);if(hh>9&&!o.mirror){const lines=ob.text.split('\n');const fs=Math.min(hh/(lines.length+.6),hw*2/3.2);ctx.font=`bold ${fs}px "Noto Sans KR",sans-serif`;ctx.fillStyle=ob.fg;lines.forEach((l,i)=>ctx.fillText(l,b0[0],b0[1]-hh+fs*(i+1.05)));}
+    }});
+  ctx.restore();
+}
+function drawFP(){
+  const c=car,ca=Math.cos(c.ang),sa=Math.sin(c.ang),rx=sa,ry=-ca; // (rx,ry)=오른쪽
+  const dy=c.bumpT>0?Math.sin(c.bumpT/.6*Math.PI*2)*Math.min(28,(c.bumpV||0)*1.4):0;
+  drawScene(0,0,W,H,[c.x+ca*.8,c.y+sa*.8],c.ang,{dy});
+  // 보닛 + 대시보드
+  ctx.fillStyle='#1e2a36';ctx.beginPath();ctx.moveTo(0,H);ctx.lineTo(W*.08,H*.86);ctx.quadraticCurveTo(W/2,H*.78,W*.92,H*.86);ctx.lineTo(W,H);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#16202a';ctx.fillRect(0,H*.92,W,H*.08);
+  const on=Math.floor(blink*3)%2===0;const cw=Math.min(190,W*.5),cx=W/2,cy=H*.955;
+  ctx.fillStyle='#0d1319';ctx.beginPath();ctx.roundRect(cx-cw/2,cy-20,cw,40,8);ctx.fill();
+  ctx.font='bold 22px "IBM Plex Mono",monospace';ctx.fillStyle='#e8f0f7';ctx.textAlign='center';ctx.fillText(Math.round(c.v*3.6)+'',cx,cy+8);
+  ctx.font='bold 22px sans-serif';ctx.fillStyle=c.sig==='L'&&on?'#3ddc5a':'#243039';ctx.fillText('◀',cx-cw/2+22,cy+8);ctx.fillStyle=c.sig==='R'&&on?'#3ddc5a':'#243039';ctx.fillText('▶',cx+cw/2-22,cy+8);
+  // 룸미러
+  const mw=Math.min(W*.40,240),mh=mw*.3,mx=(W-mw)/2,my=6;$('nav').style.top=(mh+18)+'px';
+  ctx.fillStyle='#0b0f14';ctx.beginPath();ctx.roundRect(mx-4,my-4,mw+8,mh+8,6);ctx.fill();
+  drawScene(mx,my,mw,mh,[c.x-ca*.6,c.y-sa*.6],c.ang+Math.PI,{mirror:true,horF:.5,fF:1.15,far:220});
+  // 사이드미러
+  const sw=Math.min(W*.3,150),sh=sw*.5,sy=H*.60;
+  ctx.fillStyle='#0b0f14';ctx.beginPath();ctx.roundRect(2,sy-4,sw+8,sh+8,6);ctx.fill();ctx.beginPath();ctx.roundRect(W-sw-10,sy-4,sw+8,sh+8,6);ctx.fill();
+  drawScene(6,sy,sw,sh,[c.x-rx*1.1+ca*.3,c.y-ry*1.1+sa*.3],c.ang+Math.PI+.32,{mirror:true,horF:.5,fF:1.0,far:160});
+  drawScene(W-sw-6,sy,sw,sh,[c.x+rx*1.1+ca*.3,c.y+ry*1.1+sa*.3],c.ang+Math.PI-.32,{mirror:true,horF:.5,fF:1.0,far:160});
+}
+
+// ================= 루프 =================
+let last=performance.now(),acc=0;
+function loop(t){const dt=Math.min(.1,(t-last)/1000);last=t;
+  if(running){acc+=dt;while(acc>0){const h=Math.min(acc,1/60);step(h);acc-=h;if(!running)break;}acc=Math.max(0,acc);}
+  else if(car){blink+=dt;}
+  if(toastT>0){toastT-=dt;if(toastT<=0)$('toast').classList.remove('show');}
+  render();requestAnimationFrame(loop);}
+requestAnimationFrame(loop);
+
+// ================= 핸들 =================
+const wheel={ang:0,max:Math.PI*2.5,held:false,last:0,cv:$('wheel')};
+{const wc=wheel.cv,wx=wc.getContext('2d');const angOf=e=>{const r=wc.getBoundingClientRect();return Math.atan2(e.clientY-(r.top+r.height/2),e.clientX-(r.left+r.width/2));};
+ wc.addEventListener('pointerdown',e=>{e.preventDefault();wheel.held=true;wheel.last=angOf(e);try{wc.setPointerCapture(e.pointerId);}catch(x){}});
+ wc.addEventListener('pointermove',e=>{if(!wheel.held)return;const a=angOf(e);let d=a-wheel.last;d=Math.atan2(Math.sin(d),Math.cos(d));wheel.last=a;wheel.ang=Math.max(-wheel.max,Math.min(wheel.max,wheel.ang+d));});
+ ['pointerup','pointercancel','lostpointercapture'].forEach(ev=>wc.addEventListener(ev,()=>{wheel.held=false;}));
+ wheel.draw=()=>{const R=150;wx.setTransform(1,0,0,1,0,0);wx.clearRect(0,0,300,300);wx.translate(R,R);wx.rotate(wheel.ang);
+  wx.lineWidth=26;wx.strokeStyle='#3a4653';wx.beginPath();wx.arc(0,0,R-16,0,TAU);wx.stroke();wx.lineWidth=20;wx.strokeStyle='#243039';wx.beginPath();wx.arc(0,0,R-16,0,TAU);wx.stroke();
+  wx.lineWidth=18;wx.strokeStyle='#2a3744';wx.lineCap='round';[Math.PI,Math.PI/6,-Math.PI/6].forEach(a=>{wx.beginPath();wx.moveTo(0,0);wx.lineTo(Math.cos(a)*(R-30),Math.sin(a)*(R-30));wx.stroke();});
+  wx.fillStyle='#1b232b';wx.beginPath();wx.arc(0,0,34,0,TAU);wx.fill();wx.fillStyle='#f5c518';wx.beginPath();wx.arc(0,-(R-16),9,0,TAU);wx.fill();};}
+// ================= 입력 =================
+document.querySelectorAll('[data-hold]').forEach(b=>{const k=b.dataset.hold;const on=e=>{e.preventDefault();keys[k]=true;b.classList.add('down');try{b.setPointerCapture(e.pointerId);}catch(x){}};const off=e=>{keys[k]=false;b.classList.remove('down');};
+  b.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>b.addEventListener(ev,off));b.addEventListener('contextmenu',e=>e.preventDefault());});
+function tap(k){if(k==='view'){view=view==='2d'?'fp':'2d';document.querySelectorAll('#seg button').forEach(b=>b.classList.toggle('on',b.dataset.v===view));}
+  else if(k==='mute'){muted=!muted;document.querySelector('[data-tap="mute"]').textContent=muted?'음성 끔':'음성 켬';if(muted&&'speechSynthesis'in window)speechSynthesis.cancel();}
+  else if(car){car.sig=car.sig===k?'':k;car.sigAng=car.ang;car.sigT=0;}}
+document.querySelectorAll('[data-tap]').forEach(b=>b.addEventListener('pointerdown',e=>{e.preventDefault();tap(b.dataset.tap);}));
+addEventListener('keydown',e=>{const m={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'gas',ArrowDown:'brake'};if(m[e.key]){keys[m[e.key]]=true;e.preventDefault();}if(e.key==='q'||e.key==='Q')tap('L');if(e.key==='e'||e.key==='E')tap('R');if(e.key==='v'||e.key==='V')tap('view');});
+addEventListener('keyup',e=>{const m={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'gas',ArrowDown:'brake'};if(m[e.key])keys[m[e.key]]=false;});
+let picked='R';
+document.querySelectorAll('#pick button').forEach(b=>b.onclick=()=>{picked=b.dataset.c;document.querySelectorAll('#pick button').forEach(x=>x.classList.toggle('on',x===b));});
+document.querySelector('#pick [data-c="R"]').classList.add('on');
+document.querySelectorAll('#seg button').forEach(b=>b.onclick=()=>{view=b.dataset.v;document.querySelectorAll('#seg button').forEach(x=>x.classList.toggle('on',x===b));});
+document.querySelectorAll('#tlv button').forEach(b=>b.onclick=()=>{trafficLevel=+b.dataset.t;document.querySelectorAll('#tlv button').forEach(x=>x.classList.toggle('on',x===b));});
+$('belt').onclick=()=>{belt=!belt;$('belt').classList.toggle('on',belt);$('belt').textContent=belt?'안전띠 착용 ✓':'안전띠 착용';};
+$('go').onclick=()=>{const k=picked==='R'?'ABCD'[Math.floor(Math.random()*4)]:picked;startCourse(k);};
+$('again').onclick=()=>startCourse(courseKey);
+$('toStart').onclick=()=>{$('end').hidden=true;$('start').hidden=false;belt=false;$('belt').classList.remove('on');$('belt').textContent='안전띠 착용';};
+// ponytail: 감점 5점은 게시물에 없는 연습용 추정값(차선변경 7점만 게시물 기준). 회전교차로3·4의 방향(좌/우)도 사진에 없어 지도 배치상 추정.
+</script>

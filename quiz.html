@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#10161C">
+<style>[hidden]{display:none!important}</style>
+<title>양구 도로주행 드릴</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=IBM+Plex+Mono:wght@500;700&display=swap">
+<style>
+:root{
+  --bg:#F3F4F1; --paper:#FFFFFF; --ink:#16212B; --mute:#5C6873; --line:#D6DAD4;
+  --navy:#123C5C; --navy-ink:#FFFFFF; --yellow:#F5C518; --yellow-ink:#2A2200;
+  --ok:#1E7A46; --ok-bg:#E3F3E9; --bad:#B42318; --bad-bg:#FBE9E7; --warn-bg:#FFF6D6;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#141A20; --paper:#1D252D; --ink:#EDF0F2; --mute:#9AA6B1; --line:#33404B;
+  --navy:#1F5C8A; --ok:#5BD08A; --ok-bg:#163826; --bad:#FF8A7A; --bad-bg:#43201C; --warn-bg:#3D3414; --yellow-ink:#1A1600;
+}}
+:root[data-theme="dark"]{
+  --bg:#141A20; --paper:#1D252D; --ink:#EDF0F2; --mute:#9AA6B1; --line:#33404B;
+  --navy:#1F5C8A; --ok:#5BD08A; --ok-bg:#163826; --bad:#FF8A7A; --bad-bg:#43201C; --warn-bg:#3D3414; --yellow-ink:#1A1600;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans KR",system-ui,-apple-system,sans-serif;font-size:16px;line-height:1.6}
+.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+header{background:var(--navy);color:var(--navy-ink);padding:22px 20px 18px}
+.wrap{max-width:760px;margin:0 auto}
+header h1{margin:0;font-size:24px;font-weight:900;letter-spacing:-.01em;text-wrap:balance}
+header p{margin:6px 0 0;opacity:.85;font-size:14px}
+.picker{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.picker button{font:inherit;font-weight:700;padding:9px 14px;border-radius:6px;border:2px solid rgba(255,255,255,.35);background:transparent;color:var(--navy-ink);cursor:pointer}
+.picker button:focus-visible,.opt:focus-visible,.next:focus-visible,.tab:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
+.picker .rand{background:var(--yellow);color:var(--yellow-ink);border-color:var(--yellow)}
+.picker button.on{background:var(--navy-ink);color:var(--navy)}
+main{padding:20px}
+.status{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:13px;color:var(--mute);margin-bottom:10px}
+.status b{color:var(--ink);font-size:18px}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-bottom:18px}
+.bar i{display:block;height:100%;background:var(--navy);width:0;transition:width .3s}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:22px}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);font-weight:700}
+.where{font-size:20px;font-weight:900;margin:2px 0 8px;letter-spacing:-.01em}
+.scene{color:var(--mute);margin:0 0 14px;max-width:62ch}
+.q{font-weight:700;margin:0 0 12px}
+.opts{display:grid;gap:8px}
+.opt{font:inherit;text-align:left;padding:12px 14px;border-radius:8px;border:2px solid var(--line);background:var(--paper);color:var(--ink);cursor:pointer;line-height:1.5}
+.opt:hover:not(:disabled){border-color:var(--navy)}
+.opt:disabled{cursor:default}
+.opt.right{border-color:var(--ok);background:var(--ok-bg)}
+.opt.wrong{border-color:var(--bad);background:var(--bad-bg)}
+.fb{margin-top:14px;padding:12px 14px;border-radius:8px;font-size:15px;display:none}
+.fb.show{display:block}
+.fb.ok{background:var(--ok-bg)} .fb.bad{background:var(--bad-bg)}
+.fb .tag{display:inline-block;font-size:12px;font-weight:700;padding:1px 8px;border-radius:4px;margin-right:6px;background:var(--yellow);color:var(--yellow-ink)}
+.fb .tag.fail{background:var(--bad);color:#fff}
+.next{display:none;margin-top:14px;font:inherit;font-weight:700;padding:11px 18px;border-radius:8px;border:0;background:var(--navy);color:var(--navy-ink);cursor:pointer}
+.next.show{display:inline-block}
+.result h2{margin:0 0 6px;font-size:22px;font-weight:900}
+.result .big{font-size:40px;font-weight:700}
+.result .verdict{display:inline-block;padding:4px 12px;border-radius:6px;font-weight:900;margin:8px 0 14px}
+.verdict.pass{background:var(--ok-bg);color:var(--ok)} .verdict.fail{background:var(--bad-bg);color:var(--bad)}
+.result ul{padding-left:18px;margin:0}
+.result li{margin-bottom:6px}
+.route{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 0;padding:0;list-style:none;font-size:13px}
+.route li{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+.route li.done{background:var(--navy);color:var(--navy-ink);border-color:var(--navy)}
+.route li.now{background:var(--yellow);color:var(--yellow-ink);border-color:var(--yellow);font-weight:700}
+.ref{margin-top:32px}
+.tabs{display:flex;gap:4px;border-bottom:2px solid var(--line);margin-bottom:14px}
+.tab{font:inherit;font-weight:700;padding:8px 12px;border:0;background:none;color:var(--mute);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px}
+.tab.on{color:var(--ink);border-color:var(--yellow)}
+.pane{display:none}.pane.on{display:block}
+.pane h3{font-size:15px;margin:16px 0 6px}
+.pane ul{margin:0;padding-left:20px;max-width:70ch}
+.pane li{margin-bottom:4px}
+.pane .note{background:var(--warn-bg);padding:10px 14px;border-radius:8px;font-size:14px;margin-top:12px;max-width:70ch}
+footer{color:var(--mute);font-size:12px;padding:0 20px 24px}
+</style>
+
+<header><div class="wrap">
+  <h1>양구 도로주행 드릴</h1>
+  <p>중부자동차운전전문학원 A·B·C·D 코스. 70점 이상 합격, 시간제한 없음, 내비 안내 있음.</p>
+  <div class="picker">
+    <button class="rand" id="rand">🎲 시험처럼 랜덤 뽑기</button>
+    <button data-c="A">A코스</button><button data-c="B">B코스</button>
+    <button data-c="C">C코스</button><button data-c="D">D코스</button>
+  </div>
+</div></header>
+
+<main><div class="wrap">
+  <div class="status"><span id="title"><b>코스를 고르면 시작합니다</b></span><span class="mono" id="score"></span></div>
+  <div class="bar"><i id="bar"></i></div>
+  <div class="card" id="card">
+    <div class="eyebrow">사용법</div>
+    <div class="where">시험 당일처럼 코스를 뽑고, 구간마다 "지금 뭘 해야 하지?"를 고르세요.</div>
+    <p class="scene">틀리면 그 자리에서 요령을 알려줍니다. 실격 항목을 틀리면 결과에 실격으로 표시되고, 차선변경 미이행은 7점 감점으로 계산합니다. 보기 순서는 매번 섞입니다.</p>
+  </div>
+  <ol class="route" id="route"></ol>
+
+  <section class="ref">
+    <div class="tabs">
+      <button class="tab on" data-p="p1">회전교차로</button>
+      <button class="tab" data-p="p2">어린이보호구역</button>
+      <button class="tab" data-p="p3">차선변경 구간</button>
+      <button class="tab" data-p="p4">C코스 우회전</button>
+      <button class="tab" data-p="p5">실격사유</button>
+    </div>
+    <div class="pane on" id="p1"><ul>
+      <li>진입 전 속도를 <b>30km 이하</b>로 충분히 줄인다 (1종은 2단).</li>
+      <li>내비가 좌측 9시(좌회전)·12시(직진)이면 <b>좌측 방향지시등</b> 점등 후 진입 (교차로 왼쪽으로 진입한다는 개념). 나갈 때는 <b>우측</b> 방향지시등.</li>
+      <li>내비가 우회전이면 <b>우측</b> 방향지시등 점등 후 진입.</li>
+      <li>회전차량 우선. 좌측에서 돌아오는 차가 있으면 진입 전 정차, 없을 때 진입. 회전차량이 없으면 정차할 필요 없음.</li>
+      <li>무조건 오른쪽으로 돌아서 회전.</li>
+      <li>안에는 노란선(안전지대) 등 장애물이 많고 급하게 도는 구간이므로 서행.</li>
+    </ul></div>
+    <div class="pane" id="p2"><ul>
+      <li>어린이보호구역은 <b>30km 정도</b>로 통과 (1종은 3단). 40km 이상이면 실격.</li>
+      <li><b>양구초 앞 횡단보도(A·B코스)</b>: 정지선 일시정지 후 보행자 없을 때 통과 (1종은 정차 후 바로 1단 넣고 출발).</li>
+      <li><b>죽리초 앞 횡단보도</b>: 일시정지 없이 통과. 춘천↔양구 주요도로라 통행량 많고 빨라서 당분간 일시정지는 채점하지 않음.</li>
+    </ul><div class="note">22.7.12 개정 도로교통법 기준. 보호구역 내 횡단보도는 원래 일시정지가 원칙이지만 죽리초 앞만 예외.</div></div>
+    <div class="pane" id="p3"><ul>
+      <li>구간: 첫 번째 회전교차로(송청교차로) 지난 후 전광판·다리 구간. <b>두 번째 회전교차로 진입 전까지 완료</b>.</li>
+      <li><b>A코스</b>: 안전지대 피해 1차로 진입 → 2차로로 변경 → 2차로로 회전교차로 통과 → 2차로 진행. B코스는 반대편에서 같은 요령.</li>
+      <li><b>C코스</b>: 안전지대 피해 1차로 진입 → 2차로로 변경 → 다시 1차로 진입 → 다음 회전교차로 1차로 진입, 좌측 9시 방향 진행. D코스는 반대편에서 같은 요령.</li>
+      <li>미이행 시 <b>7점 감점</b>.</li>
+    </ul></div>
+    <div class="pane" id="p4"><ul>
+      <li>C코스 종합운동장 방면 마지막 우회전 시:</li>
+      <li><b>차량신호 적색</b>: 횡단보도 정지선에 무조건 일시정지. 보행자 신호가 녹색이면 보행자가 없어도 통과 금지. 보행자 신호가 적색일 때 천천히 진입하며, 신호 받고 진행 중인 다른 차의 진로를 방해하지 않게 통과.</li>
+      <li><b>차량신호 녹색</b>: 서행하며 통과.</li>
+    </ul></div>
+    <div class="pane" id="p5"><ul>
+      <li>전 구간 50~60km 유지 — <b>70km 이상 실격</b></li>
+      <li>어린이보호구역 40km 미만 유지 — <b>40km 이상 실격</b></li>
+      <li>현저한 운전능력 부족: 3회 이상 엔진정지, 3회 이상 급브레이크, 3회 이상 급조작, 급출발</li>
+      <li>안전거리 미확보 등 교통사고 위험</li>
+      <li>음주, 휴대전화 사용, 시험관의 지시·통제 불응</li>
+      <li>신호위반, 중앙선 침범, 보행자 보호 위반</li>
+      <li>좌석안전띠 미착용</li>
+      <li>긴급자동차 진로 미양보</li>
+    </ul><div class="note">돌발상황이 생기면 시험관(검정원)의 지시가 최우선. 담당강사 교육 내용과 다르더라도 검정원 지시를 따른다.</div></div>
+  </section>
+</div></main>
+<footer><div class="wrap">학원 게시물 2장을 기준으로 만든 연습용 페이지입니다. 당일 검정원 지시가 우선합니다.</div></footer>
+
+<script>
+// ----- 구간 조각 (t:구간, s:상황, q:질문, o:보기(첫번째가 정답), x:해설, k:'fail'|'m7')
+const S = {
+  start:{t:'출발 전',s:'운전석에 앉았다. 검정원은 동승석, 수강생2는 뒷자리.',q:'출발 전 반드시 할 것은?',o:['좌석안전띠 착용 확인 후 출발','내비 음량만 확인하고 바로 출발','검정원이 출발하라고 할 때까지 시동 끄고 대기'],x:'좌석안전띠 미착용은 실격.',k:'fail'},
+  road:{t:'일반도로 주행',s:'보호구역이 아닌 일반 구간. 앞차와 거리 여유.',q:'유지해야 할 속도는?',o:['50~60km 유지','40km 정도로 천천히','65~70km로 흐름에 맞춰'],x:'전 구간 50~60km. 70km 이상이면 실격. 안전거리 미확보도 실격 사유.',k:'fail'},
+  jukri:{t:'죽리초등학교 앞 어린이보호구역',s:'40km 제한 표지. 횡단보도가 있고 보행자는 없다.',q:'통과 요령은?',o:['30km 정도로 통과, 횡단보도는 일시정지 없이 통과 (1종 3단)','40km 유지하며 횡단보도 앞 일시정지','정지선에 일시정지 후 통과'],x:'40km 이상이면 실격. 죽리초 앞은 춘천↔양구 주요도로라 통행량이 많고 빨라 당분간 일시정지는 채점하지 않는다.',k:'fail'},
+  rb1in:{t:'송청교차로 (회전교차로1) 진입',s:'내비: "직진(12시 방향)입니다."',q:'진입 전 속도와 방향지시등은?',o:['30km 이하로 감속, 좌측 방향지시등 점등 후 진입','30km 이하로 감속, 우측 방향지시등 점등 후 진입','방향지시등 없이 서행 진입'],x:'좌회전(9시)·직진(12시)은 교차로 왼쪽으로 진입한다는 개념이라 좌측 깜빡이. 1종은 2단.'},
+  yield:{t:'회전교차로 진입 직전',s:'좌측에서 돌아오는 차량이 보인다.',q:'어떻게?',o:['진입 전 정차, 차량이 지나간 뒤 진입','속도만 줄이고 사이로 끼어들기','진입차량 우선이니 그대로 진입'],x:'회전차량 우선. 회전차량이 없을 때는 정차할 필요 없다.',k:'fail'},
+  rbexit:{t:'회전교차로 안',s:'오른쪽으로 돌고 있고, 나갈 출구가 보인다. 바닥에 노란선 안전지대.',q:'나갈 때는?',o:['우측 방향지시등 점등 후 서행하며 나간다','좌측 방향지시등 유지한 채 나간다','지시등 없이 빠르게 빠져나간다'],x:'나갈 때는 우측 깜빡이. 안에는 장애물이 많고 급하게 도는 구간이라 서행.'},
+  laneA:{t:'차선변경 구간 (다리·전광판)',s:'송청교차로를 막 지났다. 회전교차로2 진입 전까지 완료해야 한다.',q:'A코스 차선변경 순서는?',o:['안전지대 피해 1차로 진입 → 2차로로 변경 → 2차로로 회전교차로2 통과 → 2차로 진행','2차로 진입 → 1차로로 변경 → 1차로로 통과','1차로 진입 → 2차로 변경 → 다시 1차로 복귀'],x:'A·B코스는 2차로로 회전교차로를 통과하고 2차로로 계속 진행. 미이행 시 7점 감점.',k:'m7'},
+  laneB:{t:'차선변경 구간 (다리·전광판)',s:'회전교차로2를 막 지났다. 송청교차로 진입 전까지 완료해야 한다.',q:'B코스 차선변경 순서는?',o:['안전지대 피해 1차로 진입 → 2차로로 변경 → 2차로로 송청교차로 통과 → 2차로 진행','2차로 진입 → 1차로로 변경 → 1차로로 통과','1차로 진입 → 2차로 변경 → 다시 1차로 복귀'],x:'A코스와 같은 요령을 반대편에서. 미이행 시 7점 감점.',k:'m7'},
+  laneC:{t:'차선변경 구간 (다리·전광판)',s:'송청교차로를 막 지났다. 회전교차로2 진입 전까지 완료해야 한다.',q:'C코스 차선변경 순서는?',o:['안전지대 피해 1차로 진입 → 2차로로 변경 → 다시 1차로 진입 → 회전교차로2에 1차로로 진입','1차로 진입 → 2차로 변경 → 2차로로 통과','2차로 유지하며 그대로 통과'],x:'C·D코스는 1차로로 되돌아와서 회전교차로에 1차로로 진입. 미이행 시 7점 감점.',k:'m7'},
+  laneD:{t:'차선변경 구간 (다리·전광판)',s:'회전교차로2를 막 지났다. 송청교차로 진입 전까지 완료해야 한다.',q:'D코스 차선변경 순서는?',o:['안전지대 피해 1차로 진입 → 2차로로 변경 → 다시 1차로 진입 → 송청교차로에 1차로로 진입','1차로 진입 → 2차로 변경 → 2차로로 통과','2차로 유지하며 그대로 통과'],x:'C코스와 같은 요령을 반대편에서. 미이행 시 7점 감점.',k:'m7'},
+  rb2A:{t:'회전교차로2 진입',s:'내비: "직진(12시 방향)입니다." 2차로로 주행 중.',q:'방향지시등은?',o:['좌측 점등 후 진입, 나갈 때 우측 점등','우측 점등 후 진입, 나갈 때 좌측 점등','지시등 없이 진입'],x:'직진(12시)도 좌측 깜빡이로 진입, 우측 깜빡이로 탈출.'},
+  rb2C:{t:'회전교차로2 진입',s:'내비: "좌측 9시 방향입니다." 1차로로 진입.',q:'방향지시등은?',o:['좌측 점등 후 진입, 나갈 때 우측 점등','우측 점등 후 진입','좌측 점등 후 진입, 나갈 때도 좌측 유지'],x:'좌회전(9시)은 좌측 깜빡이로 진입, 나갈 때 우측.'},
+  rbRight:{t:'회전교차로 진입',s:'내비: "우회전입니다."',q:'방향지시등은?',o:['우측 방향지시등 점등 후 진입','좌측 방향지시등 점등 후 진입','지시등 없이 진입'],x:'우회전 안내일 때만 우측 깜빡이로 진입.'},
+  townA:{t:'양구 읍내도로',s:'회전교차로2를 지나 읍내로 들어왔다.',q:'A·B코스 읍내도로 주행 차로는?',o:['1차로','2차로','편한 차로 아무거나'],x:'게시물: "회전교차로2 지나 양구 읍내도로 1차로 주행구간".'},
+  yanggu:{t:'양구초 앞 어린이보호구역 횡단보도',s:'횡단보도와 정지선. 보행자는 보이지 않는다.',q:'어떻게?',o:['정지선에 일시정지 후 보행자 없을 때 통과 (1종은 정차 후 1단 넣고 출발)','30km로 서행하며 통과','보행자 없으니 그대로 통과'],x:'죽리초와 달리 여기는 일시정지를 채점한다. 보행자 보호 위반은 실격.',k:'fail'},
+  rbGen:{t:'회전교차로 진입',s:'내비: "직진입니다."',q:'진입 전 속도는?',o:['30km 이하로 충분히 감속 (1종 2단)','40km 유지','50km 유지'],x:'모든 회전교차로 공통.'},
+  outerC:{t:'양구 외곽도로',s:'회전교차로2를 지나 외곽도로로 나왔다.',q:'C·D코스 외곽도로 주행 차로는?',o:['2차로','1차로','갓길 쪽 아무 차로'],x:'게시물: "회전교차로2 지나 양구 외곽도로 2차로 주행구간".'},
+  rightRed:{t:'종합운동장 방면 마지막 우회전',s:'차량신호 적색. 횡단보도 보행자 신호는 녹색. 보행자는 없다.',q:'어떻게?',o:['정지선에 일시정지. 보행자 신호가 적색이 될 때까지 통과하지 않고 대기','보행자가 없으니 일시정지 후 바로 우회전','우측 깜빡이 켜고 서행하며 통과'],x:'적색 시 무조건 일시정지. 보행자 신호 녹색이면 보행자가 없어도 통과 금지. 적색이 되면 천천히 진입하며 다른 차 진로를 방해하지 않게 통과.',k:'fail'},
+  rightGreen:{t:'종합운동장 방면 마지막 우회전',s:'차량신호 녹색.',q:'어떻게?',o:['서행하며 통과','정지선에 일시정지 후 통과','속도 유지하며 통과'],x:'녹색이면 서행 통과.'},
+  emerg:{t:'돌발상황',s:'뒤에서 구급차 사이렌. 검정원이 "오른쪽에 붙여 세우세요"라고 한다. 강사에게 배운 것과 다르다.',q:'어떻게?',o:['검정원 지시대로 진로를 양보한다','강사에게 배운 대로 진행한다','내비 안내대로 계속 간다'],x:'긴급자동차 진로 미양보, 시험관 지시 불응 모두 실격. 검정원 지시가 최우선.',k:'fail'},
+  phone:{t:'주행 중',s:'휴대전화가 울린다.',q:'어떻게?',o:['무시하고 운전에 집중','스피커폰으로 짧게 받는다','잠깐 보고 끊는다'],x:'휴대전화 사용은 실격.',k:'fail'},
+  arrive:{t:'도착',s:'목적지 도착. 검정원이 정차하라고 한다.',q:'정차 요령은?',o:['천천히 감속해 안전하게 정차 후 주차브레이크','급브레이크로 바로 정차','정차하고 바로 안전띠 풀고 내린다'],x:'급브레이크·급조작 3회 이상은 실격. 끝까지 검정원 지시를 기다린다.'},
+};
+const d=(base,t)=>Object.assign({},S[base],{t});
+const COURSES = {
+  A:{name:'A코스 · 학원 출발 → 서희아파트',steps:[S.start,S.road,S.jukri,S.phone,S.rb1in,S.yield,S.rbexit,S.laneA,S.rb2A,S.townA,S.yanggu,d('rbGen','회전교차로3 진입'),d('yield','회전교차로4 진입 직전'),S.emerg,S.arrive]},
+  B:{name:'B코스 · 서희아파트 출발 → 학원',steps:[S.start,S.road,d('rbGen','회전교차로4 진입'),d('yield','회전교차로3 진입 직전'),S.rbexit,S.yanggu,S.townA,d('rb2A','회전교차로2 진입'),S.laneB,d('rb1in','송청교차로 (회전교차로1) 진입'),S.jukri,S.phone,S.emerg,S.arrive]},
+  C:{name:'C코스 · 학원 출발 → 종합운동장·하리교차로',steps:[S.start,S.road,S.jukri,S.phone,S.rb1in,S.yield,S.rbexit,S.laneC,S.rb2C,S.outerC,S.rightRed,S.rightGreen,S.emerg,S.arrive]},
+  D:{name:'D코스 · 종합운동장 출발 → 학원',steps:[S.start,S.road,S.outerC,d('rbRight','회전교차로2 진입'),S.yield,S.rbexit,S.laneD,d('rb1in','송청교차로 (회전교차로1) 진입'),S.jukri,S.phone,S.emerg,S.arrive]},
+};
+
+let cur=null, i=0, log=[];
+const $=id=>document.getElementById(id);
+
+function start(c){
+  cur=COURSES[c]; i=0; log=[];
+  document.querySelectorAll('.picker [data-c]').forEach(b=>b.classList.toggle('on',b.dataset.c===c));
+  $('title').innerHTML='<b>'+cur.name+'</b>';
+  render();
+}
+function render(){
+  const n=cur.steps.length;
+  $('bar').style.width=(i/n*100)+'%';
+  const right=log.filter(l=>l.ok).length;
+  $('score').textContent=`${i}/${n}  정답 ${right}`;
+  $('route').innerHTML=cur.steps.map((s,k)=>`<li class="${k<i?'done':k===i?'now':''}">${s.t}</li>`).join('');
+  if(i>=n) return result();
+  const s=cur.steps[i];
+  const opts=s.o.map((text,idx)=>({text,idx})).sort(()=>Math.random()-.5);
+  $('card').innerHTML=`<div class="eyebrow">${i+1} / ${n}</div><div class="where">${s.t}</div><p class="scene">${s.s}</p><p class="q">${s.q}</p>
+    <div class="opts">${opts.map(o=>`<button class="opt" data-i="${o.idx}">${o.text}</button>`).join('')}</div>
+    <div class="fb" id="fb"></div><button class="next" id="next">다음 구간 →</button>`;
+  document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>answer(s,+b.dataset.i,b));
+  $('next').onclick=()=>{i++;render();};
+}
+function answer(s,pick,btn){
+  const ok=pick===0; log.push({ok,s});
+  document.querySelectorAll('.opt').forEach(b=>{b.disabled=true;if(+b.dataset.i===0)b.classList.add('right');});
+  if(!ok)btn.classList.add('wrong');
+  const tag=s.k==='fail'?'<span class="tag fail">실격 항목</span>':s.k==='m7'?'<span class="tag">7점 감점</span>':'';
+  const fb=$('fb'); fb.className='fb show '+(ok?'ok':'bad');
+  fb.innerHTML=(ok?'✅ 정답. ':'❌ ')+tag+s.x;
+  $('next').classList.add('show'); $('next').focus();
+}
+function result(){
+  const wrong=log.filter(l=>!l.ok);
+  const failed=wrong.some(l=>l.s.k==='fail');
+  const minus=wrong.reduce((a,l)=>a+(l.s.k==='m7'?7:l.s.k==='fail'?0:5),0);
+  const score=Math.max(0,100-minus);
+  const verdict=failed?'<span class="verdict fail">실격 항목 오답 있음</span>':score>=70?'<span class="verdict pass">합격권</span>':'<span class="verdict fail">70점 미만</span>';
+  $('card').innerHTML=`<div class="result"><div class="eyebrow">결과</div><h2>${cur.name}</h2>
+    <div class="big mono">${failed?'실격':score+'점'}</div>${verdict}
+    ${wrong.length?'<p class="q">다시 볼 구간</p><ul>'+wrong.map(l=>`<li><b>${l.s.t}</b> — ${l.s.x}</li>`).join('')+'</ul>':'<p>전 구간 정답. 다른 코스도 뽑아보세요.</p>'}
+    <button class="next show" id="again">같은 코스 다시</button> <button class="next show" id="rand2">랜덤 다른 코스</button></div>`;
+  $('again').onclick=()=>start(Object.keys(COURSES).find(k=>COURSES[k]===cur));
+  $('rand2').onclick=random;
+  $('score').textContent=`${log.length}/${log.length}  정답 ${log.length-wrong.length}`;
+}
+// ponytail: 일반 오답 감점 5점은 게시물에 없는 연습용 추정값. 실제 배점은 검정원 기준.
+function random(){start('ABCD'[Math.floor(Math.random()*4)]);}
+$('rand').onclick=random;
+document.querySelectorAll('.picker [data-c]').forEach(b=>b.onclick=()=>start(b.dataset.c));
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===t));
+  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id===t.dataset.p));
+});
+</script>
