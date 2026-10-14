@@ -113,7 +113,7 @@ button.k.steer{font-size:26px}
       <button class="big start" id="toStart">코스 선택</button>
     </div></div>
   </div>
-    <div id="info"><span id="iName">—</span><span>⏱ <b class="mono" id="iTime">0:00</b></span><span>점수 <b class="mono" id="iScore">100</b></span><span><button class="mini" data-tap="view">시점</button> <button class="mini" data-tap="mute">음성 켬</button> <button class="mini" id="fs">전체화면</button></span></div>
+    <div id="info"><span id="iName">—</span><span>⏱ <b class="mono" id="iTime">0:00</b></span><span>점수 <b class="mono" id="iScore">100</b></span><span><button class="mini" data-tap="view">시점</button> <button class="mini" data-tap="mute">소리 켬</button> <button class="mini" id="fs">전체화면</button></span></div>
       <div class="stalk" id="stalk"><div class="hint"><span>▲ 밀면 우측</span><span>▼ 당기면 좌측</span></div><div class="lever" id="lever">깜빡이<small id="leverS">꺼짐</small></div></div>
       <canvas id="wheel" width="300" height="300"></canvas>
       <div class="pedals"><button class="k stop" data-hold="brake">브레이크</button><button class="k go" data-hold="gas">가속</button></div>
@@ -138,6 +138,7 @@ const ROADS=[[[0,0],[70,70],[70,230],[110,340]],[[110,340],[110,500]],[[110,500]
 const CROSS=[{p:[70,150],dir:[0,1]},{p:[70,640],dir:[1,0]}];
 const SCHOOL=[[[70,110],[70,190]],[[95,640],[45,640]]];
 // ponytail: 방지턱 위치는 공개 데이터에 양구군 등록이 없어 임시값. 사용자가 실제 위치를 알려주면 이 목록만 수정.
+const PEDC=[{p:[70,150],dir:[0,1],n:'죽리초'},{p:[70,640],dir:[1,0],n:'양구초'}];
 const BUMPS=[{p:[70,122],dir:[0,1],n:'죽리초 보호구역 입구'},{p:[70,178],dir:[0,1],n:'죽리초 보호구역 출구'},{p:[86,640],dir:[1,0],n:'양구초 횡단보도 앞'},{p:[54,640],dir:[1,0],n:'양구초 횡단보도 앞'}];
 const COL={asphalt:'#4b4f55',island:'#d8c27a',grass:'#7fa36a',yellow:'#f0c21b',white:'#eeeeee',school:'rgba(215,65,55,.35)'};
 const GROUND=[], OBJS=[]; let COURSE_G=[], COURSE_O=[];
@@ -202,6 +203,7 @@ function buildCourse(cfg){
   {const z=[sOf(cfg.hold.a),sOf(cfg.hold.b)].sort((x,y)=>x-y);c.hz={a:z[0],b:z[1],lane:cfg.hold.lane,ok:0,bad:0,done:false};c.nav.push({s:z[0],kind:'hold',text:cfg.hold.label,sign:cfg.hold.lane+'차로\n주행',speak:cfg.hold.label+' 구간입니다'});}
   c.stops=cfg.stops.map(p=>{const s=sOf(p);c.nav.push({s,kind:'stop',text:'양구초 횡단보도 — 정지선 일시정지',sign:'횡단보도\n일시정지',speak:'횡단보도 앞 정지선에 일시정지하세요'});const{p:pp,dir}=at(s);COURSE_G.push({pts:quad(V(pp,M(dir,-.3)),dir,.3,6.8,.5),c:COL.white});return{s,done:false,checked:false};});
   if(cfg.light){const s=sOf(cfg.light);c.light={s,set:false,red:false,ped:true,stopped:false,stopT:0,checked:false};c.nav.push({s,kind:'light',text:'종합운동장 방면 우회전 — 신호등 확인',sign:'신호등\n우회전',speak:'우회전입니다. 적신호면 정지선에 일시정지하세요'});const{p:pp,dir}=at(s);COURSE_G.push({pts:quad(V(pp,M(dir,-.3)),dir,.3,6.8,.5),c:COL.white});COURSE_O.push({t:'light',x:pp[0]+R90(dir)[0]*8.5+dir[0]*6,y:pp[1]+R90(dir)[1]*8.5+dir[1]*6,z0:4.5,w:1.2});}
+  c.peds=[];PEDC.forEach(w=>{const pr=proj(w.p);if(pr.dd<3&&pr.type==='road')c.peds.push({s:pr.s,n:w.n,st:'wait',lat:0,dir:0,t:0});});
   c.bumps=[];BUMPS.forEach(b=>{const pr=proj(b.p);if(pr.dd<2.5&&pr.type==='road'){c.bumps.push({s:pr.s,n:b.n,done:false});c.nav.push({s:pr.s,kind:'bump',text:'방지턱 — 20km 이하로 감속',sign:'방지턱',speak:'방지턱입니다. 속도를 줄이세요'});}});
   c.nav.push({s:c.sEnd,kind:'end',text:'목적지 — 우측 방향지시등 켜고 천천히 정차',sign:'목적지',speak:'목적지 부근입니다. 우측 방향지시등을 켜고 안전하게 정차하세요'});
   c.nav.push({s:0,kind:'start',text:'출발 — 좌측 방향지시등 켜고 출발',sign:'',speak:''});
@@ -222,10 +224,30 @@ const keys={left:false,right:false,gas:false,brake:false};
 let traffic=[],oncoming=[],trafficLevel=6,spawnT=0;
 let view='2d',muted=false,course=null,courseKey='A',car=null,running=false,log=[],score=100,failReason=null,elapsed=0,npcs=[],toastT=0,belt=false,blink=0;
 
+// ================= 소리 · 진동 =================
+const SND={ctx:null,eng:null,noise:null};
+function audioInit(){if(SND.ctx)return;try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return;const ctx=new C();SND.ctx=ctx;
+  const o1=ctx.createOscillator(),o2=ctx.createOscillator(),lp=ctx.createBiquadFilter(),g=ctx.createGain();
+  o1.type='sawtooth';o2.type='square';lp.type='lowpass';lp.frequency.value=620;g.gain.value=0;
+  o1.connect(lp);o2.connect(lp);lp.connect(g);g.connect(ctx.destination);o1.start();o2.start();
+  SND.eng={o1,o2,g};
+  const n=ctx.createBuffer(1,ctx.sampleRate*.5,ctx.sampleRate),d=n.getChannelData(0);
+  for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;SND.noise=n;
+  }catch(e){}}
+function engineSnd(v,pedal){if(!SND.ctx||!SND.eng)return;const t=SND.ctx.currentTime,e=SND.eng;
+  const f=48+v*6.5+pedal*22;e.o1.frequency.setTargetAtTime(f,t,.08);e.o2.frequency.setTargetAtTime(f*.5,t,.08);
+  e.g.gain.setTargetAtTime(muted?0:.012+pedal*.022+Math.min(v,22)*.0011,t,.12);}
+function blip(freq,dur,vol,type){if(!SND.ctx||muted)return;const ctx=SND.ctx,o=ctx.createOscillator(),g=ctx.createGain();
+  o.type=type||'square';o.frequency.value=freq;o.connect(g);g.connect(ctx.destination);const t=ctx.currentTime;
+  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.start(t);o.stop(t+dur+.02);}
+function thud(vol,dur,cut){if(!SND.ctx||!SND.noise||muted)return;const ctx=SND.ctx,src=ctx.createBufferSource(),g=ctx.createGain(),lp=ctx.createBiquadFilter();
+  src.buffer=SND.noise;lp.type='lowpass';lp.frequency.value=cut||260;src.connect(lp);lp.connect(g);g.connect(ctx.destination);
+  const t=ctx.currentTime;g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);src.start(t);src.stop(t+dur+.05);}
+const buzz=p=>{try{if(navigator.vibrate)navigator.vibrate(p);}catch(e){}};
 function say(t){if(muted||!('speechSynthesis'in window))return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='ko-KR';u.rate=1.05;speechSynthesis.speak(u);}catch(e){}}
 function toast(t,ok){const el=$('toast');el.textContent=t;el.className='hud show'+(ok?' ok':'');toastT=3.5;}
-function deduct(pts,text){if(!running)return;score=Math.max(0,score-pts);log.push({text:`-${pts} ${text}`,f:false});toast(`검정원: ${text} (-${pts})`);say(text);}
-function fail(text){if(!running)return;failReason=text;log.push({text:'실격: '+text,f:true});toast('실격: '+text);say('실격. '+text);finish();}
+function deduct(pts,text){if(!running)return;score=Math.max(0,score-pts);log.push({text:`-${pts} ${text}`,f:false});toast(`검정원: ${text} (-${pts})`);blip(320,.14,.07);buzz(45);say(text);}
+function fail(text){if(!running)return;failReason=text;log.push({text:'실격: '+text,f:true});toast('실격: '+text);thud(.5,.45,180);buzz([140,70,240]);say('실격. '+text);finish();}
 function note(text){if(!running)return;log.push({text,f:false,ok:true});toast(text,true);}
 
 function startCourse(k){
@@ -255,7 +277,8 @@ const laneOff=l=>l===1?1.75:5.25, pickCol=()=>CARCOL[Math.floor(Math.random()*CA
 function vehNear(s,lat,r){return traffic.some(t=>Math.abs(t.s-s)<r&&Math.abs(t.lat-lat)<2.5)||(Math.abs(car.s-s)<r&&Math.abs(car.d-lat)<2.5);}
 function spawnSame(behind){const s=behind?car.s-60-Math.random()*120:car.s+60+Math.random()*120;if(s<2||s>course.sEnd-80)return;const lane=Math.random()<.5?1:2;if(vehNear(s,laneOff(lane),14))return;
   const vd=(62+Math.random()*18)/3.6;traffic.push({s,lat:laneOff(lane),tl:lane,v:behind?vd:vd*.85,vd,ph:Math.random()*TAU,cool:0,col:pickCol()});}
-function spawnOn(){const s=car.s+120+Math.random()*220;if(s>course.sEnd-20||course.at(s).type==='ring')return;const lat=Math.random()<.5?-1.75:-5.25;if(oncoming.some(o=>Math.abs(o.s-s)<16&&o.lat===lat))return;oncoming.push({s,lat,v:(55+Math.random()*25)/3.6,col:pickCol()});}
+const mouthAt=s=>course.at(s).type==='ring'||course.RBE.some(r=>(s>r.sOut&&s<r.sOut+22)||(s<r.sIn&&s>r.sIn-16));
+function spawnOn(){const s=car.s+120+Math.random()*220;if(s>course.sEnd-20||mouthAt(s))return;const lat=Math.random()<.5?-1.75:-5.25;if(oncoming.some(o=>Math.abs(o.s-s)<16&&o.lat===lat))return;oncoming.push({s,lat,v:(55+Math.random()*25)/3.6,col:pickCol()});}
 function aheadOf(s,lat,self,withLight,tol=2.5){let best=null;const consider=(ss,ll,vv,tt=tol)=>{if(ss>s&&Math.abs(ll-lat)<tt){const g=ss-s-4.4;if(!best||g<best.g)best={g,v:vv};}};
   traffic.forEach(t=>{if(t!==self)consider(t.s,t.lat,t.v);});if(self)consider(car.s,car.d,car.v,Math.max(tol,3.4));
   const L=course.light;if(withLight&&L&&L.set&&L.red&&L.ped)consider(L.s+2.5,lat,0);
@@ -280,22 +303,40 @@ function updateTraffic(dt){
   });
   traffic=traffic.filter(t=>t.s<course.sEnd-6&&t.s-car.s<320&&t.s-car.s>-220);
   oncoming.forEach(o=>{o.s-=o.v*dt;const p=course.at(o.s);o.x=p.p[0]+R90(p.dir)[0]*o.lat;o.y=p.p[1]+R90(p.dir)[1]*o.lat;o.ang=Math.atan2(-p.dir[1],-p.dir[0]);});
-  oncoming=oncoming.filter(o=>o.s>car.s-70&&o.s>3&&course.at(o.s).type!=='ring'&&!RBS.some(c=>dist(c,[o.x,o.y])<24));
+  oncoming=oncoming.filter(o=>o.s>car.s-70&&o.s>3&&!mouthAt(o.s)&&!RBS.some(c=>dist(c,[o.x,o.y])<24));
 }
 // ================= 물리 + 채점 =================
 function step(dt){
   elapsed+=dt;blink+=dt;
   const c=car;
-  const acc=keys.gas?2.3:keys.brake?-6:-.55;c.v=Math.max(0,c.v+acc*dt);
+  engineSnd(c.v,c.pedal||0);
+  if(c.sig){c.tick=(c.tick||0)+dt;if(c.tick>.52){c.tick=0;blip(1750,.045,.05,'square');}}else c.tick=0;
+  c.pedal=Math.max(0,Math.min(1,(c.pedal||0)+(keys.gas&&!keys.brake?dt/0.85:-dt/0.3)));
+  c.bped=Math.max(0,Math.min(1,(c.bped||0)+(keys.brake?dt/0.4:-dt/0.25)));
+  const acc=c.bped>.02?-(1.0+5.2*c.bped):(c.pedal>.02?3.15*c.pedal-.35:-.55);c.v=Math.max(0,c.v+acc*dt);
   if(keys.left||keys.right){const tgt=keys.left?-1:1;const r=dt/1.1;wheel.ang=Math.max(-wheel.max,Math.min(wheel.max,wheel.ang+tgt*wheel.max*r));wheel.want=wheel.ang;}
   else wheel.step(dt,c.v);
   c.steer=steerOf(wheel.ang);
   if(c.sig){const dir=c.sig==='R'?1:-1;if(wheel.ang*dir>.9)c.sigArmed=true;
     if(c.sigArmed&&Math.abs(wheel.ang)<.25&&c.type!=='ring'){c.sig='';c.sigArmed=false;}}
   const kmh=c.v*3.6;const maxSt=.5-(.5-.12)*Math.max(0,Math.min(1,(kmh-15)/55));
+  // ---- 급조작 (3회 이상 실격)
+  if(running){c.rough=c.rough||{brake:0,steer:0};
+    c.vLog=c.vLog||[];c.vLog.push({t:elapsed,v:c.v});while(c.vLog.length&&elapsed-c.vLog[0].t>1.6)c.vLog.shift();
+    c.wLog=c.wLog||[];c.wLog.push({t:elapsed,a:wheel.ang});while(c.wLog.length&&elapsed-c.wLog[0].t>0.3)c.wLog.shift();
+    c.rcool=Math.max(0,(c.rcool||0)-dt);
+    const rough=(k,label)=>{if(c.rcool>0)return;c.rough[k]++;c.rcool=4;thud(.3,.2,150);buzz(70);
+      if(c.rough[k]>=3)fail(`현저한 운전능력 부족 (${label} 3회)`);else deduct(3,`${label} ${c.rough[k]}회 (3회면 실격)`);};
+    // 급브레이크: 45km 이상에서 1.6초 안에 15km 아래로 — 늦게 밟고 꽉 밟은 경우만
+    if(c.bped>.5&&c.v<4.2&&c.vLog.some(r=>r.v>12.5))rough('brake','급브레이크');
+    // ponytail: 급출발은 가속이 버튼(온·오프)이라 세게 밟았는지 구분 불가 → 판정하지 않음. 아날로그 페달 넣으면 그때 추가.
+    // 급핸들: 0.3초 안에 115도 이상 홱 꺾기 (30km 이상에서만)
+    if(kmh>30&&c.wLog.length>8&&Math.abs(wheel.ang-c.wLog[0].a)>2.0)rough('steer','급조작(급핸들)');}
   c.ang-=(c.v/2.7)*Math.tan(c.steer*maxSt)*dt;
   c.x+=Math.cos(c.ang)*c.v*dt;c.y+=Math.sin(c.ang)*c.v*dt;
-  npcs.forEach(n=>{if(!n.on&&n.chance&&dist([c.x,c.y],n.c)<75){n.on=true;}if(n.on){n.a+=n.w*dt;n.life-=dt;if(n.life<0)n.on=false;n.x=n.c[0]+Math.cos(n.a)*RP;n.y=n.c[1]+Math.sin(n.a)*RP;if(dist([c.x,c.y],[n.x,n.y])<3.4)fail('회전차량과 충돌 (교통사고)');if(c.type==='ring'&&dist([c.x,c.y],n.c)<RO+3){let ah=n.a-Math.atan2(c.y-n.c[1],c.x-n.c[0]);ah=((ah%TAU)+TAU)%TAU;if(ah>1.9&&ah<4.5)n.on=false;}}});
+  npcs.forEach(n=>{if(!n.on&&n.chance&&dist([c.x,c.y],n.c)<75){n.on=true;}if(n.on){let adv=n.w*dt;
+    if(dist([c.x,c.y],n.c)<RO+3.5){const pa=Math.atan2(c.y-n.c[1],c.x-n.c[0]);let g=((pa-n.a)%TAU+TAU)%TAU;if(g<0.62)adv=0;}
+    n.a+=adv;n.life-=dt;if(n.life<0)n.on=false;n.x=n.c[0]+Math.cos(n.a)*RP;n.y=n.c[1]+Math.sin(n.a)*RP;if(dist([c.x,c.y],[n.x,n.y])<3.4)fail('회전차량과 충돌 (교통사고)');if(c.type==='ring'&&dist([c.x,c.y],n.c)<RO+3){let ah=n.a-Math.atan2(c.y-n.c[1],c.x-n.c[0]);ah=((ah%TAU)+TAU)%TAU;if(ah>1.9&&ah<4.5)n.on=false;}}});
   if(!running)return;
   updateTraffic(dt);
   const hit=v=>{const dx=v.x-c.x,dy=v.y-c.y,lx=dx*Math.cos(c.ang)+dy*Math.sin(c.ang),ly=-dx*Math.sin(c.ang)+dy*Math.cos(c.ang);return Math.abs(lx)<4.3&&Math.abs(ly)<1.9;};
@@ -304,15 +345,16 @@ function step(dt){
   // ---- 위치 판정
   const pr=course.proj([c.x,c.y],c.s);c.s=pr.s;c.d=pr.d;
   const prevType=c.type;c.type=pr.type;
-  const nearRB=RBS.some(q=>dist(q,[c.x,c.y])<21);
+  const nearRB=RBS.some(q=>dist(q,[c.x,c.y])<27);
   const fwd=[Math.cos(c.ang),Math.sin(c.ang)];
   if(c.v>1.5&&fwd[0]*pr.dir[0]+fwd[1]*pr.dir[1]<-.3)return fail('역주행 (진행 방향 반대)');
   if(c.type==='road'){let ln=pr.d<-.9?'center':pr.d>7?'off':null;
     if(ln===null){const pv=c.lane;ln=pv===1?(pr.d>4.1?2:1):pv===2?(pr.d<2.9?1:2):(pr.d<3.5?1:2);}
     if(typeof c.lane==='number'&&typeof ln==='number'&&ln!==c.lane&&!nearRB&&c.s>12&&c.s<course.sEnd-20){const need=ln>c.lane?'R':'L';if(c.sig!==need)deduct(5,`차선변경 시 ${need==='L'?'좌측':'우측'} 방향지시등 미점등`);}
     c.lane=ln;
-    if(!nearRB&&c.s>12&&c.s<course.sEnd-6){if(c.lane==='center')return fail('중앙선 침범');if(pr.d>7.9)return fail('도로 이탈');}
-  }else{c.lane='ring';const grace=course.RBE.some(r=>Math.abs(c.s-r.sIn)<9||Math.abs(c.s-r.sOut)<9);
+    const mouth=nearRB||course.RBE.some(r=>(c.s>r.sOut&&c.s<r.sOut+18)||(c.s<r.sIn&&c.s>r.sIn-12));
+    if(!mouth&&c.s>12&&c.s<course.sEnd-6){if(c.lane==='center')return fail('중앙선 침범');if(pr.d>7.9)return fail('도로 이탈');}
+  }else{c.lane='ring';const grace=course.RBE.some(r=>Math.abs(c.s-r.sIn)<12||Math.abs(c.s-r.sOut)<12);
     if(pr.d<(grace?-5.4:-3.6))return fail('회전교차로 중앙 안전지대 침범');if(pr.d>(grace?7.4:4.6))return fail('도로 이탈');}
   if(c.v>.5&&!belt)return fail('좌석안전띠 미착용');
   if(c.v>.5&&!c.startChecked){c.startChecked=true;if(c.sig!=='L')deduct(5,'출발 시 좌측 방향지시등 미점등');else note('출발 OK (좌측 방향지시등)');}
@@ -321,6 +363,7 @@ function step(dt){
   if(ahP&&ahP.g<c.v*.7&&c.v>6&&ahP.v>1){c.sdT=(c.sdT||0)+dt;if(c.sdT>2.5&&c.sdCool<=0){deduct(5,'안전거리 미확보 (앞차와 너무 가까움)');c.sdCool=15;c.sdT=0;}}else c.sdT=0;
   // ---- 속도
   const sch=course.school.find(z=>c.s>=z.a&&c.s<=z.b);const lim=sch?40:70;
+  if(kmh>lim-6){c.warnT=(c.warnT||0)+dt;if(c.warnT>.6){c.warnT=0;blip(880,.1,.06,'sine');}}else c.warnT=0;
   if(kmh>=lim)return fail(sch?`어린이보호구역 ${lim}km 이상 (${Math.round(kmh)}km)`:`제한속도 초과 (${Math.round(kmh)}km, 70 이상 실격)`);
   // ---- 회전교차로 진입/진출
   if(prevType==='road'&&c.type==='ring'){const rb=course.RBE.find(r=>dist(r.c,[c.x,c.y])<RO+2);if(rb){
@@ -335,9 +378,20 @@ function step(dt){
     if(c.s>lz.b){lz.done=true;const want=course.cfg.laneSeq;const ok=lz.seq.length===want.length&&lz.seq.every((l,i)=>l===want[i]);if(!ok)deduct(7,`차선변경 미이행 (${lz.seq.map(l=>l+'차로').join('→')||'기록 없음'} / 요령: ${want.map(l=>l+'차로').join('→')})`);else note('차선변경 OK');}}
   const hz=course.hz;if(!hz.done){if(c.s>=hz.a&&c.s<=hz.b&&typeof c.lane==='number'){if(c.lane===hz.lane)hz.ok+=dt;else hz.bad+=dt;}
     if(c.s>hz.b){hz.done=true;if(hz.bad>(hz.ok+hz.bad)*.4)deduct(5,course.cfg.hold.label+' 미이행');else note(course.cfg.hold.label+' OK');}}
+  // ---- 보행자
+  course.peds.forEach(w=>{
+    if(w.st==='wait'){const d=w.s-c.s;
+      if(d<55&&d>8&&w.dir===0){w.dir=Math.random()<.5?1:-1;w.lat=w.dir*8.5;w.go=Math.random()<.75;if(!w.go)w.st='none';}
+      else if(w.dir!==0&&d<34&&d>2){w.st='cross';say('보행자가 건너고 있습니다');}}
+    else if(w.st==='cross'){w.lat-=w.dir*1.25*dt;if(Math.abs(w.lat)>8.6)w.st='done';}
+    if(w.st==='cross'||w.st==='wait'){const p=course.at(w.s),n=R90(p.dir);w.x=p.p[0]+n[0]*w.lat;w.y=p.p[1]+n[1]*w.lat;}
+    if(w.st==='cross'&&Math.abs(c.s-w.s)<3.2&&Math.abs(c.d-w.lat)<2.6)return fail('보행자 충돌 (보행자 보호 위반)');
+    if(w.st==='cross'&&!w.judged&&c.s>w.s+1){w.judged=true;if(Math.abs(w.lat)<7.5)return fail('보행자 횡단 중 횡단보도 통과 (보행자 보호 위반)');}
+    if(w.st==='done'&&!w.judged){w.judged=true;if(Math.abs(c.s-w.s)<40)note('보행자 횡단 대기 OK');}});
+  if(!running)return;
   // ---- 방지턱
   c.bumpT=Math.max(0,(c.bumpT||0)-dt);
-  course.bumps.forEach(b=>{if(!b.done&&c.s>b.s){b.done=true;c.bumpT=.6;c.bumpV=c.v;if(kmh>25)deduct(5,`방지턱 감속 미흡 (${Math.round(kmh)}km, 20km 이하 권장)`);else note('방지턱 OK');}});
+  course.bumps.forEach(b=>{if(!b.done&&c.s>b.s){b.done=true;c.bumpT=.6;c.bumpV=c.v;thud(.22+Math.min(.25,c.v*.02),.16,320);buzz(Math.min(60,18+c.v*2.5));if(kmh>25)deduct(5,`방지턱 감속 미흡 (${Math.round(kmh)}km, 20km 이하 권장)`);else note('방지턱 OK');}});
   // ---- 횡단보도 일시정지
   course.stops.forEach(st=>{if(c.s>=st.s-12&&c.s<=st.s+.5&&c.v<.3)st.done=true;if(c.s>st.s+.5&&!st.checked){st.checked=true;if(!st.done)fail('횡단보도 정지선 일시정지 위반 (보행자 보호 위반)');else note('횡단보도 일시정지 OK');}});
   // ---- 신호등 우회전 (C)
@@ -368,7 +422,7 @@ function render(){
   const on=Math.floor(blink*3)%2===0;$('sigL').className=c.sig==='L'&&on?'on':'';$('sigR').className=c.sig==='R'&&on?'on':'';
   $('iTime').textContent=fmt(elapsed);$('iScore').textContent=score;wheel.draw();$('sig').style.display=view==='fp'?'none':'flex';wheel.lever();if(view!=='fp')$('nav').style.top='8px';
 }
-function allObjs(){return OBJS.concat(COURSE_O,traffic.concat(oncoming).filter(v=>v.x!==undefined).map(v=>({t:'box',x:v.x,y:v.y,w:1.8,d:4.3,h:1.45,c:v.col,ang:v.ang,z0:0,car:true})),npcs.filter(n=>n.on).map(n=>({t:'box',x:n.x,y:n.y,w:1.8,d:4.3,h:1.5,c:'#3b6fd6',ang:n.a+Math.PI/2,z0:0,car:true})));}
+function allObjs(){return OBJS.concat(COURSE_O,(course&&course.peds||[]).filter(w=>(w.st==='cross'||w.st==='wait')&&w.x!==undefined).map(w=>({t:'box',x:w.x,y:w.y,w:.55,d:.45,h:1.7,c:w.st==='cross'?'#e8564a':'#5d6b78',ang:0,z0:0})),traffic.concat(oncoming).filter(v=>v.x!==undefined).map(v=>({t:'box',x:v.x,y:v.y,w:1.8,d:4.3,h:1.45,c:v.col,ang:v.ang,z0:0,car:true})),npcs.filter(n=>n.on).map(n=>({t:'box',x:n.x,y:n.y,w:1.8,d:4.3,h:1.5,c:'#3b6fd6',ang:n.a+Math.PI/2,z0:0,car:true})));}
 function boxCorners(o){const ca=Math.cos(o.ang),sa=Math.sin(o.ang);return[[-o.d/2,-o.w/2],[o.d/2,-o.w/2],[o.d/2,o.w/2],[-o.d/2,o.w/2]].map(([u,v])=>[o.x+u*ca-v*sa,o.y+u*sa+v*ca]);}
 function draw2D(){
   const c=car,k=Math.min(W,H)/62,cx=W/2,cy=H*.64,rot=Math.PI/2-c.ang;
@@ -418,7 +472,7 @@ function drawScene(x0,y0,w,h,cam,camAng,o){
     }else if(ob.t==='sign'||ob.t==='light'){if(cp.z<NEAR)return;const z0=ob.z0,ww=ob.w;const base=proj({x:cp.x,z:cp.z,h:0}),b0=proj({x:cp.x,z:cp.z,h:z0});const hw=f*(ww/2)/cp.z,hh=f*ww/cp.z;
       if(ob.t==='sign'&&ob.z0<4){ctx.strokeStyle='#666';ctx.lineWidth=Math.max(1,f*.12/cp.z);ctx.beginPath();ctx.moveTo(base[0],base[1]);ctx.lineTo(b0[0],b0[1]);ctx.stroke();}
       if(ob.t==='light'){ctx.strokeStyle='#444';ctx.lineWidth=Math.max(1,f*.2/cp.z);ctx.beginPath();ctx.moveTo(base[0],base[1]);ctx.lineTo(b0[0],b0[1]);ctx.stroke();ctx.fillStyle='#222';ctx.fillRect(b0[0]-hw,b0[1]-hh,hw*2,hh);const red=course.light.set&&course.light.red;ctx.fillStyle=red?'#ff1744':'#00e676';ctx.beginPath();ctx.arc(b0[0],b0[1]-hh/2,hw*.6,0,TAU);ctx.fill();return;}
-      ctx.fillStyle=ob.bg;ctx.fillRect(b0[0]-hw,b0[1]-hh,hw*2,hh);if(hh>9&&!o.mirror){const lines=ob.text.split('\n');const fs=Math.min(hh/(lines.length+.6),hw*2/3.2);ctx.font=`bold ${fs}px "Noto Sans KR",sans-serif`;ctx.fillStyle=ob.fg;lines.forEach((l,i)=>ctx.fillText(l,b0[0],b0[1]-hh+fs*(i+1.05)));}
+      ctx.fillStyle=ob.bg;ctx.fillRect(b0[0]-hw,b0[1]-hh,hw*2,hh);if(hh>9&&!o.mirror){const lines=ob.text.split('\n');const fs=Math.min(hh/(lines.length+.6),hw*2/3.2,42);ctx.font=`bold ${fs}px "Noto Sans KR",sans-serif`;ctx.fillStyle=ob.fg;lines.forEach((l,i)=>ctx.fillText(l,b0[0],b0[1]-hh+fs*(i+1.05)));}
     }});
   ctx.restore();
 }
@@ -462,7 +516,7 @@ const steerOf=a=>{const x=Math.max(-1,Math.min(1,a/wheel.max));return Math.sign(
  wc.addEventListener('pointerdown',e=>{e.preventDefault();wheel.held=true;wheel.want=wheel.ang;wheel.last=angOf(e);try{wc.setPointerCapture(e.pointerId);}catch(x){}});
  wc.addEventListener('pointermove',e=>{if(!wheel.held)return;const a=angOf(e);let d=a-wheel.last;d=Math.atan2(Math.sin(d),Math.cos(d));wheel.last=a;wheel.want=Math.max(-wheel.max,Math.min(wheel.max,wheel.want+d));});
  ['pointerup','pointercancel','lostpointercapture'].forEach(ev=>wc.addEventListener(ev,()=>{wheel.held=false;}));
- wheel.step=(dt,v)=>{if(wheel.held)wheel.ang=wheel.want;else{const back=(0.5+v*0.28)*dt;wheel.ang=Math.abs(wheel.ang)<back?0:wheel.ang-Math.sign(wheel.ang)*back;wheel.want=wheel.ang;}};
+ wheel.step=(dt,v)=>{if(wheel.held)wheel.ang=wheel.want;else{const back=(0.45+v*0.22)*dt;wheel.ang=Math.abs(wheel.ang)<back?0:wheel.ang-Math.sign(wheel.ang)*back;wheel.want=wheel.ang;}};
  wheel.draw=()=>{const R=150;wx.setTransform(1,0,0,1,0,0);wx.clearRect(0,0,300,300);wx.translate(R,R);wx.rotate(wheel.ang);
   wx.lineWidth=26;wx.strokeStyle='#3a4653';wx.beginPath();wx.arc(0,0,R-16,0,TAU);wx.stroke();wx.lineWidth=20;wx.strokeStyle='#243039';wx.beginPath();wx.arc(0,0,R-16,0,TAU);wx.stroke();
   wx.lineWidth=18;wx.strokeStyle='#2a3744';wx.lineCap='round';[Math.PI,Math.PI/6,-Math.PI/6].forEach(a=>{wx.beginPath();wx.moveTo(0,0);wx.lineTo(Math.cos(a)*(R-30),Math.sin(a)*(R-30));wx.stroke();});
@@ -482,7 +536,7 @@ const steerOf=a=>{const x=Math.max(-1,Math.min(1,a/wheel.max));return Math.sign(
 document.querySelectorAll('[data-hold]').forEach(b=>{const k=b.dataset.hold;const on=e=>{e.preventDefault();keys[k]=true;b.classList.add('down');try{b.setPointerCapture(e.pointerId);}catch(x){}};const off=e=>{keys[k]=false;b.classList.remove('down');};
   b.addEventListener('pointerdown',on);['pointerup','pointercancel','lostpointercapture'].forEach(ev=>b.addEventListener(ev,off));b.addEventListener('contextmenu',e=>e.preventDefault());});
 function tap(k){if(k==='view'){view=view==='2d'?'fp':'2d';document.querySelectorAll('#seg button').forEach(b=>b.classList.toggle('on',b.dataset.v===view));}
-  else if(k==='mute'){muted=!muted;document.querySelector('[data-tap="mute"]').textContent=muted?'음성 끔':'음성 켬';if(muted&&'speechSynthesis'in window)speechSynthesis.cancel();}
+  else if(k==='mute'){muted=!muted;document.querySelector('[data-tap="mute"]').textContent=muted?'소리 끔':'소리 켬';if(muted&&'speechSynthesis'in window)speechSynthesis.cancel();if(muted&&SND.eng)SND.eng.g.gain.value=0;else audioInit();}
   else if(car){car.sig=car.sig===k?'':k;car.sigArmed=false;}}
 document.querySelectorAll('[data-tap]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();tap(b.dataset.tap);}));
 addEventListener('keydown',e=>{const m={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'gas',ArrowDown:'brake'};if(m[e.key]){keys[m[e.key]]=true;e.preventDefault();}if(e.key==='q'||e.key==='Q')tap('L');if(e.key==='e'||e.key==='E')tap('R');if(e.key==='v'||e.key==='V')tap('view');});
@@ -494,7 +548,7 @@ document.querySelectorAll('#seg button').forEach(b=>b.onclick=()=>{view=b.datase
 document.querySelectorAll('#tlv button').forEach(b=>b.onclick=()=>{trafficLevel=+b.dataset.t;document.querySelectorAll('#tlv button').forEach(x=>x.classList.toggle('on',x===b));});
 $('fs').onclick=async()=>{try{if(document.fullscreenElement){await document.exitFullscreen();return;}await document.documentElement.requestFullscreen();await screen.orientation.lock('landscape');}catch(e){}};
 $('belt').onclick=()=>{belt=!belt;$('belt').classList.toggle('on',belt);$('belt').textContent=belt?'안전띠 착용 ✓':'안전띠 착용';};
-$('go').onclick=()=>{const k=picked==='R'?'ABCD'[Math.floor(Math.random()*4)]:picked;startCourse(k);};
+$('go').onclick=()=>{audioInit();const k=picked==='R'?'ABCD'[Math.floor(Math.random()*4)]:picked;startCourse(k);};
 $('again').onclick=()=>startCourse(courseKey);
 $('toStart').onclick=()=>{$('end').hidden=true;$('start').hidden=false;belt=false;$('belt').classList.remove('on');$('belt').textContent='안전띠 착용';};
 // ponytail: 감점 5점은 게시물에 없는 연습용 추정값(차선변경 7점만 게시물 기준). 회전교차로3·4의 방향(좌/우)도 사진에 없어 지도 배치상 추정.
